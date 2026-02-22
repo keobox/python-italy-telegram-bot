@@ -1,178 +1,158 @@
-# PythonItaliaTGbot
+# Python Italy Telegram Bot
 
-Bot principale per il gruppo Telegram di [PythonItalia](https://t.me/python_ita).
+Official Telegram bot for the main Italian Python group and local sub-groups in Italy.
 
-## Che cos'è?
+**Electus** — named after Neo's Latin epithet ("the chosen one") from The Matrix. The bot personality blends Matrix and Python themes, guiding users through verification and community moderation in Italian.
 
-Questo bot è un fork della versione base di tgBot (ex Marie). Lo sviluppo orizzontale del bot ha permesso di aggiungere funzionalità e risolvere bug presenti nel codice sorgente originale.
+## Features
 
-### Il deploy
+- **Welcome captcha**: New members must read a rules file and send a secret command to the bot in private chat before they can post in the group
+- **Spam detection**: Rate limiting and duplicate message detection with automatic deletion
+- **Moderation**: Ban, mute, and report commands (admin-only for ban/mute)
+- **Database abstraction**: In-memory storage by default; persistent database can be added later
 
-Il deploy del bot può essere effettuato su Heroku (settando le variabili di ambiente) che su una VPS dedicata (preferibilmente con kernel linux > 2.6.13).
+## Requirements
 
-### Configurazione del db
+- Python 3.14+
+- [UV](https://docs.astral.sh/uv/) package manager
 
-Il primo step necessario è la configurazione del database postgres.
+## Setup
 
-#### Installazione e configurazione di postgres
-- Installa postgres:
+1. Install UV if needed:
+   ```bash
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   ```
 
-```
-sudo apt-get update && sudo apt-get install postgresql
-```
+2. Install dependencies:
+   ```bash
+   uv sync
+   ```
 
-- Cambia l'utente postgres:
+3. Copy the environment template and configure:
+   ```bash
+   cp .env.example .env
+   # Edit .env and set TELEGRAM_BOT_TOKEN
+   ```
 
-```
-sudo su - postgres
-```
+4. (Optional) Set the bot name and description in [@BotFather](https://t.me/BotFather):
+   - `/setname` → `Electus`
+   - `/setdescription` → `Guardiano della comunità Python Italia`
 
-- Crea un nuovo database utente (cambia USER con il nome dell'utente):
+5. If using PostgreSQL (`DATABASE_URL` set), create the schema:
+   ```bash
+   psql "$DATABASE_URL" -f schema.sql
+   ```
 
-```
-createuser -P -s -e USER
-```
-Ti verrà chiesto di inserire una password.
+6. Run the bot:
+   ```bash
+   uv run python-italy-bot
+   # or: uv run python -m python_italy_bot.main
+   ```
 
-- Crea una nuova tabella nel db:
+## Running the bot
 
-```
-createdb -O USER YDB_NAME
-```
-- In fine
+Start the bot:
 
-```
-psql DB_NAME -h YOUR_HOST USER
-```
-A questo punto sarai in grado di connetterti al db via terminal. Di default YOUR_HOST dovrebbe essere 0.0.0.0:5432.
-Il database-uri sarà quindi:
-```
-postgres://username:pw@hostname:port/db_name
-```
-
-
-## Configurazione
-
-Esistono due modi per configurare il bot: modificando il file config.py oppure impostando delle variabili d'ambiente.
-
-Il metodo migliore è l'uso del file config.py perchè è più semplice rivedere tutte le impostazioni in un singolo file.
-Il metodo predefinito per creare il file config.py è estendere la classe di sample_config.
-
-Un esempio di config.py potrebbe essere:
-
-```
-from tg_bot.sample_config import Config
-
-
-class Development(Config):
-    OWNER_ID = 00000000  # my telegram ID
-    OWNER_USERNAME = "########"  # my telegram username
-    API_KEY = "your bot api key"  # my api key, as provided by the botfather
-    SQLALCHEMY_DATABASE_URI = 'postgresql://username:password@localhost:5432/database'  # sample db credentials
-    MESSAGE_DUMP = '00000000' # some group chat that your bot is a member of
-    USE_MESSAGE_DUMP = True
-    SUDO_USERS = [0000000, 000000]  # List of id's for users which have sudo access to the bot.
-    LOAD = []
-    NO_LOAD = ['translation']
+```bash
+uv run python-italy-bot
 ```
 
-Nel caso in cui tu voglia deployare il bot su heroku dovrai impostare le ENV. Sono supportate le seguenti variabili:
-
-
-
-    ENV: Setting this to ANYTHING will enable env variables
-
-    TOKEN: Token del bot, come stringa.
-
-    OWNER_ID: Numero intero che identifica il proprietario del bot (id di Telegram)
-
-    OWNER_USERNAME: Il tuo username
-
-    DATABASE_URL: URI del db
-
-    MESSAGE_DUMP: opzionale: chat in cui sono salvate le risposte del bot dove non possono essere cancellate
-
-    LOAD: Lista separata da spazi di moduli che vuoi abilitare
-
-    NO_LOAD: Lista separata da spazi di moduli che NON vuoi abilitare
-
-    WEBHOOK: Impostarlo a ANYTHING abiliterà i webhooks nei messaggi env
-
-    URL: URL del webhook (richiesto solo se abilitata la modalità webhook)
-
-    SUDO_USERS: Lista separata da spazi di ids di amministratori del bot
-
-    SUPPORT_USERS: Lista separata da spazi di ids di utenti-supporter (possono gban/ungban, e basta)
-
-    WHITELIST_USERS: Lista separata da spazi di ids di utenti che non possono essere bannati
-
-    DONATION_LINK: Opzionale: Link per le donazioni
-
-    CERT_PATH: Path del certificato webhooks
-
-    PORT: Porta usata per connettersi al tuo servizio webhooks
-
-    DEL_CMDS: Se cancellare i comandi dagli utenti che non hanno i diritti per usare quel comando
-
-    STRICT_GBAN: Imponi gban su nuovi gruppi e vecchi gruppi. Quando un utente gbanned parla, sarà bannato
-
-    WORKERS: Numero di threads da usare. 8 è raccomandato (e numero di default). Nota che aumentare questo numero non porterà necessariamente dei benefici alla velocità del bot.
-
-    BAN_STICKER: Sticker da usare quando viene bannato un utente.
-
-    ALLOW_EXCL: Se consentire l'utilizzo di punti esclamativi ! per i comandi e /.
-
-
-
-### Dependency
-
-Installa le dependency con questo comando:
+The bot starts polling for updates. You should see:
 
 ```
-pip3 install -r requirements.txt
+INFO - Starting bot...
+INFO - Application started
 ```
 
-## Moduli
+Stop with `Ctrl+C`.
 
-#### Imposta l'ordine di caricamento dei moduli
+## Configuration
 
-L'ordine di caricamento in memoria dei moduli può essere opportunamente modificato tramite l'uso di LOAD e NO_LOAD.
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `TELEGRAM_BOT_TOKEN` | Yes | Bot token from [@BotFather](https://t.me/BotFather) |
+| `DATABASE_URL` | No | PostgreSQL URL (Neon or other). When set, uses PostgresRepository; otherwise in-memory. |
+| `CAPTCHA_SECRET_COMMAND` | No | Secret command for captcha (default: `python-italy`) |
+| `CAPTCHA_FILE_PATH` | No | Path to rules file (default: `assets/regolamento.md`) |
+| `MAIN_GROUP_ID` | No | Main group ID for multi-group logic |
+| `LOCAL_GROUP_IDS` | No | Comma-separated sub-group IDs |
 
-Nota: NO_LOAD è prioritario rispetto a LOAD
+## Commands
 
-## Avviare il bot con docker
+| Command | Who | Description |
+|---------|-----|-------------|
+| `/id` | Anyone | Returns chat ID and your user ID. |
+| `/ban` | Admin | Ban a user. |
+| `/unban` | Admin | Unban a user. |
+| `/mute` | Admin | Mute a user (optionally for N minutes). |
+| `/unmute` | Admin | Unmute a user. |
+| `/report` | Anyone | Report a message. |
+| `@admin` | Anyone | Request admin intervention (no reply needed). |
 
-#### Requisiti
-- docker
-- docker-compose
+### Usage
 
-#### Avvio
-- Crea un file .env usando docker/dev/config.sample come template e salvandola in docker/dev/
-- Assicurati di essere nella root del progetto e inserisci il seguente comando: 
+- **Ban**: `/ban @username`, `/ban user_id [reason]`, or reply to a message with `/ban [reason]`
+- **Unban**: `/unban @username`, `/unban user_id`, or reply to user's message
+- **Mute**: `/mute @username [minutes] [reason]`, or reply to message. Omit minutes for indefinite mute.
+- **Unmute**: `/unmute @username`, `/unmute user_id`, or reply to user's message
+- **Report**: Reply to the offending message with `/report [reason]`
+- **Admin request**: Type `@admin` or `@admin [message]` to notify admins (no reply needed)
+
+### Captcha (secret command)
+
+New members must send the secret command in DM to the bot. Default: `python-italy` (configurable via `CAPTCHA_SECRET_COMMAND`). Send it as plain text in a private chat with the bot.
+
+## Testing the bot
+
+1. **Add the bot to a group**: Make the bot an admin so it can restrict members and ban/mute users.
+
+2. **Test captcha**:
+   - Join the group with a test account (not admin).
+   - You should be restricted (read-only).
+   - Open a private chat with the bot and send the secret command (e.g. `python-italy`).
+   - You should be unrestricted in the group.
+
+3. **Test moderation** (as admin):
+   - `/ban @username` or reply to a message with `/ban [reason]`
+   - `/unban @username` to unban
+   - `/mute @username 60` to mute for 60 minutes
+   - `/unmute @username` to unmute
+
+4. **Test report** (as any member):
+   - Reply to a message with `/report spam` (or any reason).
+
+5. **Test @admin** (as any member):
+   - Type `@admin` or `@admin need help` to request admin intervention (no reply needed).
+
+## Architecture
+
 ```
-docker-compose -f docker/dev/docker-compose.yml up -d
+src/python_italy_bot/
+├── main.py           # Entry point, Application setup
+├── config.py         # Settings from env
+├── handlers/         # Telegram update handlers
+│   ├── welcome.py    # New member + captcha flow
+│   ├── moderation.py # Ban, mute, report commands
+│   └── spam.py       # Spam detection
+├── services/         # Business logic
+│   ├── captcha.py    # Captcha verification
+│   ├── spam_detector.py
+│   └── moderation.py
+├── db/               # Persistence abstraction
+│   ├── base.py       # Repository interface
+│   ├── models.py     # Domain models
+│   └── in_memory.py  # In-memory implementation
+└── assets/           # Captcha/rules file
 ```
 
-## Costruito con
+## Captcha Flow
 
-* [tgbot](https://github.com/PaulSonOfLars/tgbot) - Bot modulare scritto in Python3
-* [Trevis CI](https://travis-ci.com) - Deploy in production
-* [Docker](https://www.docker.com/) - Usato per sviluppare il bot in ambiente dev
-
-## Come contribuire
-
-Per favore leggi [CONTRIBUTING.md](https://gist.github.com/PurpleBooth/b24679402957c63ec426) per avere dettagli sulle regole
-per contribuire e come effettuare una pull-request.
-
-## Versioning
-
-Noi usiamo [SemVer](http://semver.org/) per il versioning, sincronizzato con i tag in production di GH.
-
-## Autori
-
-Controlla la lista di [contributors](https://github.com/Kavuti/python-italy-telegram-bot/graphs/contributors) che hanno reso questo progetto grande.
+1. User joins group → Bot restricts them (read-only)
+2. Bot sends welcome message with instructions
+3. User reads the rules file and finds the secret command
+4. User sends the secret command to the bot in private chat
+5. Bot verifies and removes restrictions in the group
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details
-
+MIT
