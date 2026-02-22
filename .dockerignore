@@ -1,0 +1,37 @@
+# Git
+.git
+.gitignore
+
+# Virtual environments
+.venv
+venv
+__pycache__
+*.pyc
+*.pyo
+
+# IDE and editor
+.cursor
+.vscode
+.idea
+*.swp
+*.swo
+
+# Testing
+.pytest_cache
+.coverage
+htmlcov
+
+# Environment files (secrets should be passed at runtime)
+.env
+.env.*
+!.env.example
+
+# Documentation and misc
+*.md
+!README.md
+LICENSE
+
+# Build artifacts
+dist
+build
+*.egg-info
