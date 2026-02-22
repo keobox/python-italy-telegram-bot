@@ -37,7 +37,7 @@ VERIFY_NO_PENDING = (
 )
 
 VERIFY_SUCCESS = (
-    "Verifica completata. Accesso liberato—benvenuto nella comunità Python Italia."
+    "Verifica completata. Accesso concesso alla comunità Python Italia."
 )
 
 VERIFY_UNKNOWN_COMMAND = (
