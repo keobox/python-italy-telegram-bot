@@ -2,6 +2,8 @@
 
 Official Telegram bot for the main Italian Python group and local sub-groups in Italy.
 
+**Electus** — named after Neo's Latin epithet ("the chosen one") from The Matrix. The bot personality blends Matrix and Python themes, guiding users through verification and community moderation in Italian.
+
 ## Features
 
 - **Welcome captcha**: New members must read a rules file and send a secret command to the bot in private chat before they can post in the group
@@ -32,12 +34,16 @@ Official Telegram bot for the main Italian Python group and local sub-groups in 
    # Edit .env and set TELEGRAM_BOT_TOKEN
    ```
 
-4. If using PostgreSQL (`DATABASE_URL` set), create the schema:
+4. (Optional) Set the bot name and description in [@BotFather](https://t.me/BotFather):
+   - `/setname` → `Electus`
+   - `/setdescription` → `Guardiano della comunità Python Italia`
+
+5. If using PostgreSQL (`DATABASE_URL` set), create the schema:
    ```bash
    psql "$DATABASE_URL" -f schema.sql
    ```
 
-5. Run the bot:
+6. Run the bot:
    ```bash
    uv run python-italy-bot
    # or: uv run python -m python_italy_bot.main
