@@ -52,3 +52,15 @@ CREATE TABLE IF NOT EXISTS globally_verified_users (
     user_id BIGINT PRIMARY KEY,
     verified_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS bot_chats (
+    chat_id BIGINT PRIMARY KEY,
+    added_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS global_bans (
+    user_id BIGINT PRIMARY KEY,
+    admin_id BIGINT NOT NULL,
+    reason TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
