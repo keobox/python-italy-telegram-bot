@@ -75,6 +75,7 @@ Stop with `Ctrl+C`.
 
 | Command | Who | Description |
 |---------|-----|-------------|
+| `/id` | Anyone | Returns chat ID and your user ID. |
 | `/ban` | Admin | Ban a user. |
 | `/unban` | Admin | Unban a user. |
 | `/mute` | Admin | Mute a user (optionally for N minutes). |
