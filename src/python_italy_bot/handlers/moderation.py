@@ -276,12 +276,14 @@ async def _handle_report(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     reported_user_id: int | None = None
     message_id: int | None = None
+    reported_user = None
 
     if message.reply_to_message and message.reply_to_message.from_user:
-        reported_user_id = message.reply_to_message.from_user.id
+        reported_user = message.reply_to_message.from_user
+        reported_user_id = reported_user.id
         message_id = message.reply_to_message.message_id
 
-    if reported_user_id is None:
+    if reported_user_id is None or reported_user is None:
         await message.reply_text(
             "Rispondi al messaggio da segnalare con /report [motivo]"
         )
@@ -295,6 +297,15 @@ async def _handle_report(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         reason=reason,
     )
 
+    await _notify_admins_of_report(
+        context=context,
+        chat=chat,
+        reporter=message.from_user,
+        reported_user=reported_user,
+        message_id=message_id,
+        reason=reason,
+    )
+
     await message.reply_text(
         "Segnalazione inviata. Gli amministratori la esamineranno."
     )
@@ -304,6 +315,71 @@ async def _handle_report(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         reported_user_id,
         chat.id,
     )
+
+
+def _get_user_display_name(user) -> str:
+    """Get display name for a user (full name or username)."""
+    if user.first_name:
+        name = user.first_name
+        if user.last_name:
+            name += f" {user.last_name}"
+        return name
+    return user.username or str(user.id)
+
+
+def _build_message_link(chat, message_id: int | None) -> str | None:
+    """Build a link to a message in a chat."""
+    if message_id is None:
+        return None
+    if chat.username:
+        return f"https://t.me/{chat.username}/{message_id}"
+    chat_id_str = str(chat.id)
+    if chat_id_str.startswith("-100"):
+        chat_id_str = chat_id_str[4:]
+    return f"https://t.me/c/{chat_id_str}/{message_id}"
+
+
+async def _notify_admins_of_report(
+    context: ContextTypes.DEFAULT_TYPE,
+    chat,
+    reporter,
+    reported_user,
+    message_id: int | None,
+    reason: str | None,
+) -> None:
+    """Send report notification to all chat admins via private message."""
+    try:
+        admins = await context.bot.get_chat_administrators(chat.id)
+    except Exception as e:
+        logger.warning("Failed to get admins for report notification: %s", e)
+        return
+
+    chat_title = chat.title or "Chat"
+    reporter_name = _get_user_display_name(reporter)
+    reported_name = _get_user_display_name(reported_user)
+    message_link = _build_message_link(chat, message_id)
+
+    report_text = f"<b>{chat_title}:</b>\n"
+    report_text += f'Reported user: <a href="tg://user?id={reported_user.id}">{reported_name}</a> ({reported_user.id})\n'
+    report_text += f'Reported by: <a href="tg://user?id={reporter.id}">{reporter_name}</a> ({reporter.id})\n'
+    if message_link:
+        report_text += f'Link: <a href="{message_link}">qui</a>\n'
+    if reason:
+        report_text += f"Reason: {reason}"
+
+    for admin in admins:
+        if admin.user.is_bot:
+            continue
+        try:
+            await context.bot.send_message(
+                chat_id=admin.user.id,
+                text=report_text,
+                parse_mode="HTML",
+            )
+        except Exception as e:
+            logger.debug(
+                "Could not send report to admin %s: %s", admin.user.id, e
+            )
 
 
 async def _resolve_user_id(
