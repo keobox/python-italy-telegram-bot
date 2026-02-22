@@ -39,21 +39,34 @@ class ModerationService:
         muted_users = await self._repo.get_muted_users(chat_id)
         return user_id in muted_users
 
-    async def add_ban(
+    async def add_global_ban(
         self,
         user_id: int,
-        chat_id: int,
         admin_id: int,
         reason: str | None = None,
-    ) -> None:
-        """Record a ban."""
-        await self._repo.add_ban(
-            user_id=user_id, chat_id=chat_id, admin_id=admin_id, reason=reason
+    ) -> list[int]:
+        """Record a global ban. Returns list of chat IDs to ban in."""
+        await self._repo.add_global_ban(
+            user_id=user_id, admin_id=admin_id, reason=reason
         )
+        return await self._repo.get_all_chats()
 
-    async def remove_ban(self, user_id: int, chat_id: int) -> bool:
-        """Remove a ban record."""
-        return await self._repo.remove_ban(user_id, chat_id)
+    async def remove_global_ban(self, user_id: int) -> list[int]:
+        """Remove a global ban. Returns list of chat IDs to unban in."""
+        await self._repo.remove_global_ban(user_id)
+        return await self._repo.get_all_chats()
+
+    async def is_globally_banned(self, user_id: int) -> bool:
+        """Check if user is globally banned."""
+        return await self._repo.is_globally_banned(user_id)
+
+    async def register_chat(self, chat_id: int) -> None:
+        """Register a chat where the bot is active."""
+        await self._repo.register_chat(chat_id)
+
+    async def get_all_chats(self) -> list[int]:
+        """Get all tracked chat IDs."""
+        return await self._repo.get_all_chats()
 
     async def add_mute(
         self,

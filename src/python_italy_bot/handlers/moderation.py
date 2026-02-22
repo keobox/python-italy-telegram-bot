@@ -34,11 +34,36 @@ def create_moderation_handlers(moderation_service: ModerationService) -> list:
         CommandHandler("mute", _handle_mute),
         CommandHandler("unmute", _handle_unmute),
         CommandHandler("report", _handle_report),
+        CommandHandler("forcegroupregistration", _handle_force_group_registration),
     ]
 
 
+async def _handle_force_group_registration(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Force registration of current chat in bot_chats table. Admin only."""
+    moderation_service: ModerationService = context.bot_data["moderation_service"]
+    message = update.message
+    if message is None or message.from_user is None:
+        return
+
+    chat = update.effective_chat
+    if chat is None or chat.type == "private":
+        await message.reply_text("Questo comando funziona solo nei gruppi.")
+        return
+
+    if not await _is_admin(context, chat.id, message.from_user.id):
+        await message.reply_text(
+            "Solo gli amministratori possono usare questo comando."
+        )
+        return
+
+    await moderation_service.register_chat(chat.id)
+    await message.reply_text(f"Gruppo registrato. Chat ID: {chat.id}")
+
+
 async def _handle_ban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Ban a user. Usage: /ban @username or /ban user_id [reason] or reply to message with /ban [reason]"""
+    """Ban a user globally. Usage: /ban user_id [reason] or reply to message with /ban [reason]"""
     moderation_service: ModerationService = context.bot_data["moderation_service"]
     message = update.message
     if message is None or message.from_user is None:
@@ -60,7 +85,7 @@ async def _handle_ban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     reason: str | None = None
     if message.reply_to_message and message.reply_to_message.from_user:
         user_id = message.reply_to_message.from_user.id
-        reason = args[0] if args else None
+        reason = " ".join(args) if args else None
     elif args:
         target = args[0]
         reason = args[1] if len(args) > 1 else None
@@ -68,22 +93,33 @@ async def _handle_ban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     if user_id is None:
         await message.reply_text(
-            "Uso: /ban @username, /ban user_id [motivo], o rispondi al messaggio con /ban [motivo]. "
-            "Per @username funziona solo con amministratori."
+            "Uso: /ban user_id [motivo], o rispondi al messaggio con /ban [motivo]."
         )
         return
 
-    try:
-        await context.bot.ban_chat_member(chat.id, user_id)
-        await moderation_service.add_ban(user_id, chat.id, message.from_user.id, reason)
-        await message.reply_text(f"Utente bannato. Motivo: {reason or 'Nessuno'}")
-    except Exception as e:
-        logger.warning("Ban failed: %s", e)
-        await message.reply_text("Impossibile bannare l'utente.")
+    chat_ids = await moderation_service.add_global_ban(
+        user_id, message.from_user.id, reason
+    )
+
+    success_count = 0
+    fail_count = 0
+    for cid in chat_ids:
+        try:
+            await context.bot.ban_chat_member(cid, user_id)
+            success_count += 1
+        except Exception as e:
+            logger.debug("Ban in chat %s failed: %s", cid, e)
+            fail_count += 1
+
+    msg = f"Utente bannato globalmente in {success_count} gruppi."
+    if fail_count > 0:
+        msg += f" ({fail_count} falliti)"
+    msg += f"\nMotivo: {reason or 'Nessuno'}"
+    await message.reply_text(msg)
 
 
 async def _handle_unban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Unban a user. Usage: /unban @username or /unban user_id"""
+    """Unban a user globally. Usage: /unban user_id or reply to message with /unban"""
     moderation_service: ModerationService = context.bot_data["moderation_service"]
     message = update.message
     if message is None or message.from_user is None:
@@ -108,19 +144,26 @@ async def _handle_unban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     if user_id is None:
         await message.reply_text(
-            "Uso: /unban @username, /unban user_id, o rispondi al messaggio"
+            "Uso: /unban user_id, o rispondi al messaggio con /unban"
         )
-    if user_id is None:
-        await message.reply_text("Utente non trovato.")
         return
 
-    try:
-        await context.bot.unban_chat_member(chat.id, user_id)
-        await moderation_service.remove_ban(user_id, chat.id)
-        await message.reply_text("Utente sbannato.")
-    except Exception as e:
-        logger.warning("Unban failed: %s", e)
-        await message.reply_text("Impossibile sbannare l'utente.")
+    chat_ids = await moderation_service.remove_global_ban(user_id)
+
+    success_count = 0
+    fail_count = 0
+    for cid in chat_ids:
+        try:
+            await context.bot.unban_chat_member(cid, user_id)
+            success_count += 1
+        except Exception as e:
+            logger.debug("Unban in chat %s failed: %s", cid, e)
+            fail_count += 1
+
+    msg = f"Utente sbannato globalmente da {success_count} gruppi."
+    if fail_count > 0:
+        msg += f" ({fail_count} falliti)"
+    await message.reply_text(msg)
 
 
 async def _handle_mute(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

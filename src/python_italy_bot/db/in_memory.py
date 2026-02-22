@@ -17,6 +17,8 @@ class InMemoryRepository(AsyncRepository):
         self._reports: list[Report] = []
         self._welcome_messages: dict[int, str] = {}
         self._globally_verified: set[int] = set()
+        self._bot_chats: set[int] = set()
+        self._global_bans: dict[int, tuple[int, str | None]] = {}
 
     async def add_pending_verification(self, user_id: int, chat_id: int) -> None:
         self._pending.add((user_id, chat_id))
@@ -134,3 +136,26 @@ class InMemoryRepository(AsyncRepository):
 
     async def mark_globally_verified(self, user_id: int) -> None:
         self._globally_verified.add(user_id)
+
+    async def register_chat(self, chat_id: int) -> None:
+        self._bot_chats.add(chat_id)
+
+    async def get_all_chats(self) -> list[int]:
+        return list(self._bot_chats)
+
+    async def add_global_ban(
+        self,
+        user_id: int,
+        admin_id: int,
+        reason: str | None = None,
+    ) -> None:
+        self._global_bans[user_id] = (admin_id, reason)
+
+    async def remove_global_ban(self, user_id: int) -> bool:
+        if user_id in self._global_bans:
+            del self._global_bans[user_id]
+            return True
+        return False
+
+    async def is_globally_banned(self, user_id: int) -> bool:
+        return user_id in self._global_bans

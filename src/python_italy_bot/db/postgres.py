@@ -207,5 +207,59 @@ class PostgresRepository(AsyncRepository):
                 (user_id,),
             )
 
+    async def register_chat(self, chat_id: int) -> None:
+        async with self._pool.connection() as conn:
+            await conn.execute(
+                """
+                INSERT INTO bot_chats (chat_id)
+                VALUES (%s)
+                ON CONFLICT (chat_id) DO NOTHING
+                """,
+                (chat_id,),
+            )
+
+    async def get_all_chats(self) -> list[int]:
+        async with self._pool.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute("SELECT chat_id FROM bot_chats")
+                rows = await cur.fetchall()
+                return [row[0] for row in rows]
+
+    async def add_global_ban(
+        self,
+        user_id: int,
+        admin_id: int,
+        reason: str | None = None,
+    ) -> None:
+        async with self._pool.connection() as conn:
+            await conn.execute(
+                """
+                INSERT INTO global_bans (user_id, admin_id, reason)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (user_id)
+                DO UPDATE SET admin_id = EXCLUDED.admin_id,
+                              reason = EXCLUDED.reason,
+                              created_at = NOW()
+                """,
+                (user_id, admin_id, reason),
+            )
+
+    async def remove_global_ban(self, user_id: int) -> bool:
+        async with self._pool.connection() as conn:
+            result = await conn.execute(
+                "DELETE FROM global_bans WHERE user_id = %s",
+                (user_id,),
+            )
+            return result.rowcount > 0
+
+    async def is_globally_banned(self, user_id: int) -> bool:
+        async with self._pool.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT 1 FROM global_bans WHERE user_id = %s",
+                    (user_id,),
+                )
+                return await cur.fetchone() is not None
+
     async def close(self) -> None:
         await self._pool.close()

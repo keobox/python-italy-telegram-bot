@@ -106,6 +106,36 @@ class Repository(ABC):
         """Mark user as globally verified."""
         ...
 
+    @abstractmethod
+    def register_chat(self, chat_id: int) -> None:
+        """Track a chat where the bot is active."""
+        ...
+
+    @abstractmethod
+    def get_all_chats(self) -> list[int]:
+        """Get all tracked chat IDs."""
+        ...
+
+    @abstractmethod
+    def add_global_ban(
+        self,
+        user_id: int,
+        admin_id: int,
+        reason: str | None = None,
+    ) -> None:
+        """Add a global ban for a user."""
+        ...
+
+    @abstractmethod
+    def remove_global_ban(self, user_id: int) -> bool:
+        """Remove a global ban. Returns True if existed."""
+        ...
+
+    @abstractmethod
+    def is_globally_banned(self, user_id: int) -> bool:
+        """Check if user is globally banned."""
+        ...
+
 
 class AsyncRepository(ABC):
     """Abstract interface for data persistence (async)."""
@@ -208,6 +238,36 @@ class AsyncRepository(ABC):
     @abstractmethod
     async def mark_globally_verified(self, user_id: int) -> None:
         """Mark user as globally verified."""
+        ...
+
+    @abstractmethod
+    async def register_chat(self, chat_id: int) -> None:
+        """Track a chat where the bot is active."""
+        ...
+
+    @abstractmethod
+    async def get_all_chats(self) -> list[int]:
+        """Get all tracked chat IDs."""
+        ...
+
+    @abstractmethod
+    async def add_global_ban(
+        self,
+        user_id: int,
+        admin_id: int,
+        reason: str | None = None,
+    ) -> None:
+        """Add a global ban for a user."""
+        ...
+
+    @abstractmethod
+    async def remove_global_ban(self, user_id: int) -> bool:
+        """Remove a global ban. Returns True if existed."""
+        ...
+
+    @abstractmethod
+    async def is_globally_banned(self, user_id: int) -> bool:
+        """Check if user is globally banned."""
         ...
 
     async def close(self) -> None:

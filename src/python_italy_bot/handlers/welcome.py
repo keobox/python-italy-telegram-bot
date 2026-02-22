@@ -13,6 +13,7 @@ from telegram.ext import (
 )
 
 from ..services.captcha import CaptchaService
+from ..services.moderation import ModerationService
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,7 @@ async def _handle_new_member(
 ) -> None:
     """Handle new chat members: restrict and send welcome with captcha instructions."""
     captcha_service: CaptchaService = context.bot_data["captcha_service"]
+    moderation_service: ModerationService = context.bot_data["moderation_service"]
     result = update.chat_member
     if result is None:
         return
@@ -59,7 +61,17 @@ async def _handle_new_member(
     if user is None or chat is None:
         return
 
+    await moderation_service.register_chat(chat.id)
+
     if user.is_bot:
+        return
+
+    if await moderation_service.is_globally_banned(user.id):
+        try:
+            await context.bot.ban_chat_member(chat.id, user.id)
+            logger.info("Kicked globally banned user %s from chat %s", user.id, chat.id)
+        except Exception as e:
+            logger.warning("Failed to kick globally banned user %s: %s", user.id, e)
         return
 
     if await captcha_service.is_globally_verified(user.id):
