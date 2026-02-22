@@ -5,7 +5,7 @@ import re
 
 from telegram import Update
 from telegram.constants import ChatMemberStatus
-from telegram.ext import CommandHandler, ContextTypes
+from telegram.ext import CommandHandler, ContextTypes, MessageHandler, filters
 
 from ..services.moderation import ModerationService
 
@@ -35,6 +35,12 @@ def create_moderation_handlers(moderation_service: ModerationService) -> list:
         CommandHandler("unmute", _handle_unmute),
         CommandHandler("report", _handle_report),
         CommandHandler("forcegroupregistration", _handle_force_group_registration),
+        MessageHandler(
+            (filters.TEXT | filters.CAPTION)
+            & filters.ChatType.GROUPS
+            & filters.Regex(r"(?i)@admin"),
+            _handle_admin_mention,
+        ),
     ]
 
 
@@ -358,6 +364,89 @@ async def _handle_report(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         reported_user_id,
         chat.id,
     )
+
+
+async def _handle_admin_mention(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Handle @admin mention: notify admins of intervention request (no reply needed)."""
+    message = update.message
+    if message is None or message.from_user is None:
+        return
+
+    chat = update.effective_chat
+    if chat is None or chat.type == "private":
+        return
+
+    text = message.text or message.caption or ""
+    reason = _extract_reason_after_admin(text)
+
+    await _notify_admins_of_admin_request(
+        context=context,
+        chat=chat,
+        reporter=message.from_user,
+        message_id=message.message_id,
+        reason=reason,
+    )
+
+    await message.reply_text(
+        "Richiesta inviata. Gli amministratori interverranno."
+    )
+    logger.info(
+        "Admin request: %s in chat %s",
+        message.from_user.id,
+        chat.id,
+    )
+
+
+def _extract_reason_after_admin(text: str) -> str | None:
+    """Extract optional reason from text after @admin."""
+    match = re.search(r"@admin\s*(.+)?", text, re.IGNORECASE | re.DOTALL)
+    if match and match.group(1):
+        return match.group(1).strip() or None
+    return None
+
+
+async def _notify_admins_of_admin_request(
+    context: ContextTypes.DEFAULT_TYPE,
+    chat,
+    reporter,
+    message_id: int,
+    reason: str | None,
+) -> None:
+    """Send admin intervention request notification to all chat admins via private message."""
+    try:
+        admins = await context.bot.get_chat_administrators(chat.id)
+    except Exception as e:
+        logger.warning("Failed to get admins for @admin notification: %s", e)
+        return
+
+    chat_title = chat.title or "Chat"
+    reporter_name = _get_user_display_name(reporter)
+    message_link = _build_message_link(chat, message_id)
+
+    report_text = f"<b>{chat_title}:</b>\n"
+    report_text += f'Richiesta intervento da: <a href="tg://user?id={reporter.id}">{reporter_name}</a> ({reporter.id})\n'
+    if message_link:
+        report_text += f'Link: <a href="{message_link}">qui</a>\n'
+    if reason:
+        report_text += f"Messaggio: {reason}"
+
+    for admin in admins:
+        if admin.user.is_bot:
+            continue
+        try:
+            await context.bot.send_message(
+                chat_id=admin.user.id,
+                text=report_text,
+                parse_mode="HTML",
+            )
+        except Exception as e:
+            logger.debug(
+                "Could not send @admin request to admin %s: %s",
+                admin.user.id,
+                e,
+            )
 
 
 def _get_user_display_name(user) -> str:

@@ -81,6 +81,7 @@ Stop with `Ctrl+C`.
 | `/mute` | Admin | Mute a user (optionally for N minutes). |
 | `/unmute` | Admin | Unmute a user. |
 | `/report` | Anyone | Report a message. |
+| `@admin` | Anyone | Request admin intervention (no reply needed). |
 
 ### Usage
 
@@ -89,6 +90,7 @@ Stop with `Ctrl+C`.
 - **Mute**: `/mute @username [minutes] [reason]`, or reply to message. Omit minutes for indefinite mute.
 - **Unmute**: `/unmute @username`, `/unmute user_id`, or reply to user's message
 - **Report**: Reply to the offending message with `/report [reason]`
+- **Admin request**: Type `@admin` or `@admin [message]` to notify admins (no reply needed)
 
 ### Captcha (secret command)
 
@@ -112,6 +114,9 @@ New members must send the secret command in DM to the bot. Default: `python-ital
 
 4. **Test report** (as any member):
    - Reply to a message with `/report spam` (or any reason).
+
+5. **Test @admin** (as any member):
+   - Type `@admin` or `@admin need help` to request admin intervention (no reply needed).
 
 ## Architecture
 
