@@ -49,3 +49,4 @@ class Settings:
         )
         self.main_group_id: int | None = _get_optional_int("MAIN_GROUP_ID")
         self.local_group_ids: list[int] = _get_int_list("LOCAL_GROUP_IDS")
+        self.rules_url: str | None = _get_optional_env("RULES_URL")

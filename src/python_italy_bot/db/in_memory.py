@@ -15,6 +15,8 @@ class InMemoryRepository(AsyncRepository):
         self._bans: list[Ban] = []
         self._mutes: list[Mute] = []
         self._reports: list[Report] = []
+        self._welcome_messages: dict[int, str] = {}
+        self._globally_verified: set[int] = set()
 
     async def add_pending_verification(self, user_id: int, chat_id: int) -> None:
         self._pending.add((user_id, chat_id))
@@ -117,3 +119,18 @@ class InMemoryRepository(AsyncRepository):
                 created_at=datetime.now(timezone.utc),
             )
         )
+
+    async def get_welcome_message(self, chat_id: int) -> str | None:
+        return self._welcome_messages.get(chat_id)
+
+    async def set_welcome_message(self, chat_id: int, message: str | None) -> None:
+        if message is None:
+            self._welcome_messages.pop(chat_id, None)
+        else:
+            self._welcome_messages[chat_id] = message
+
+    async def is_globally_verified(self, user_id: int) -> bool:
+        return user_id in self._globally_verified
+
+    async def mark_globally_verified(self, user_id: int) -> None:
+        self._globally_verified.add(user_id)

@@ -86,6 +86,26 @@ class Repository(ABC):
         """Record a report."""
         ...
 
+    @abstractmethod
+    def get_welcome_message(self, chat_id: int) -> str | None:
+        """Get custom welcome message for a chat."""
+        ...
+
+    @abstractmethod
+    def set_welcome_message(self, chat_id: int, message: str | None) -> None:
+        """Set custom welcome message for a chat. Pass None to remove."""
+        ...
+
+    @abstractmethod
+    def is_globally_verified(self, user_id: int) -> bool:
+        """Check if user is globally verified across all chats."""
+        ...
+
+    @abstractmethod
+    def mark_globally_verified(self, user_id: int) -> None:
+        """Mark user as globally verified."""
+        ...
+
 
 class AsyncRepository(ABC):
     """Abstract interface for data persistence (async)."""
@@ -168,6 +188,26 @@ class AsyncRepository(ABC):
         reason: str | None = None,
     ) -> None:
         """Record a report."""
+        ...
+
+    @abstractmethod
+    async def get_welcome_message(self, chat_id: int) -> str | None:
+        """Get custom welcome message for a chat."""
+        ...
+
+    @abstractmethod
+    async def set_welcome_message(self, chat_id: int, message: str | None) -> None:
+        """Set custom welcome message for a chat. Pass None to remove."""
+        ...
+
+    @abstractmethod
+    async def is_globally_verified(self, user_id: int) -> bool:
+        """Check if user is globally verified across all chats."""
+        ...
+
+    @abstractmethod
+    async def mark_globally_verified(self, user_id: int) -> None:
+        """Mark user as globally verified."""
         ...
 
     async def close(self) -> None:
