@@ -156,3 +156,15 @@ ANNOUNCE_SENDING = "Invio annuncio a {count} gruppi..."
 def announce_result(success: int, failed: int) -> str:
     """Format announcement result message."""
     return f"Annuncio inviato: {success} ok, {failed} falliti."
+
+
+# =============================================================================
+# PING (Owner Debug)
+# =============================================================================
+
+PING_RESPONSE = (
+    "Sono online.\n\n"
+    "Bot: @{bot_username}\n"
+    "Python: {python_version}\n"
+    "Timestamp: {timestamp}"
+)
