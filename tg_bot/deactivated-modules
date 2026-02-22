@@ -1,1 +1,0 @@
-NO_LOAD = ['translation','rss', 'sed', 'afk','notes','filters', 'spam']
