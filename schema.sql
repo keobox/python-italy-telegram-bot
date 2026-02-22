@@ -41,3 +41,14 @@ CREATE TABLE IF NOT EXISTS reports (
     reason TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS group_settings (
+    chat_id BIGINT PRIMARY KEY,
+    welcome_message TEXT,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS globally_verified_users (
+    user_id BIGINT PRIMARY KEY,
+    verified_at TIMESTAMPTZ DEFAULT NOW()
+);
