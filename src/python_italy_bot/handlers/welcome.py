@@ -4,7 +4,13 @@ import logging
 
 from telegram import Update
 from telegram.constants import ChatMemberStatus
-from telegram.ext import ChatMemberHandler, ContextTypes, MessageHandler, filters
+from telegram.ext import (
+    ChatMemberHandler,
+    CommandHandler,
+    ContextTypes,
+    MessageHandler,
+    filters,
+)
 
 from ..services.captcha import CaptchaService
 
@@ -18,8 +24,9 @@ def create_welcome_handlers(captcha_service: CaptchaService) -> list:
             _handle_new_member,
             ChatMemberHandler.CHAT_MEMBER,
         ),
+        CommandHandler("start", _handle_start),
         MessageHandler(
-            filters.TEXT & filters.ChatType.PRIVATE,
+            filters.TEXT & filters.ChatType.PRIVATE & ~filters.COMMAND,
             _handle_private_message,
         ),
     ]
@@ -38,7 +45,6 @@ async def _handle_new_member(
     new_status = result.new_chat_member.status
     old_status = result.old_chat_member.status if result.old_chat_member else None
 
-    # Only handle new joins (not status changes from restricted to member, etc.)
     if new_status not in (ChatMemberStatus.MEMBER, ChatMemberStatus.RESTRICTED):
         return
     if old_status in (
@@ -53,15 +59,12 @@ async def _handle_new_member(
     if user is None or chat is None:
         return
 
-    # Skip if bot
     if user.is_bot:
         return
 
-    # Skip if already verified
-    if await captcha_service.is_verified(user.id, chat.id):
+    if await captcha_service.is_globally_verified(user.id):
         return
 
-    # Restrict new member
     try:
         await context.bot.restrict_chat_member(
             chat_id=chat.id,
@@ -72,25 +75,79 @@ async def _handle_new_member(
         logger.warning("Could not restrict user %s in chat %s: %s", user.id, chat.id, e)
         return
 
-    # Record pending verification
     await captcha_service.add_pending(user.id, chat.id)
 
-    # Send welcome message
-    welcome = captcha_service.get_welcome_message()
+    bot_me = await context.bot.get_me()
+    bot_username = bot_me.username or "bot"
+
+    custom_template = await captcha_service.get_welcome_message(chat.id)
+    if custom_template:
+        template = custom_template
+    else:
+        template = captcha_service.get_default_welcome_template(bot_username)
+
+    formatted = captcha_service.format_welcome_message(template, user, chat, bot_username)
+    text, keyboard = captcha_service.parse_button_urls(formatted)
+
     try:
         await context.bot.send_message(
             chat_id=chat.id,
-            text=welcome,
+            text=text,
+            reply_markup=keyboard,
         )
     except Exception as e:
         logger.warning("Could not send welcome to chat %s: %s", chat.id, e)
+
+
+async def _handle_start(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    """Handle /start command, including deep link for verification."""
+    captcha_service: CaptchaService = context.bot_data["captcha_service"]
+    message = update.message
+    if message is None:
+        return
+
+    chat = update.effective_chat
+    if chat is None or chat.type != "private":
+        return
+
+    user = update.effective_user
+    if user is None:
+        return
+
+    args = context.args
+    if args and args[0] == "verify":
+        rules_url = captcha_service.get_rules_url()
+        if rules_url:
+            await message.reply_text(
+                f"Per completare la verifica, leggi il regolamento:\n{rules_url}\n\n"
+                "Dopo averlo letto, invia il comando segreto che troverai."
+            )
+        else:
+            captcha_content = captcha_service.get_captcha_file_content()
+            if captcha_content:
+                await message.reply_text(
+                    "Ecco il regolamento. Leggilo e invia il comando segreto che troverai:\n\n"
+                    f"{captcha_content[:4000]}"
+                )
+            else:
+                await message.reply_text(
+                    "Invia il comando segreto per completare la verifica."
+                )
+    else:
+        await message.reply_text(
+            "Ciao! Sono il bot di Python Italia.\n"
+            "Se devi completare la verifica per un gruppo, usa il pulsante nel messaggio di benvenuto."
+        )
 
 
 async def _handle_private_message(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
 ) -> None:
-    """Handle private messages: check for secret command and verify user."""
+    """Handle private messages: check for secret command and verify user globally."""
     captcha_service: CaptchaService = context.bot_data["captcha_service"]
     message = update.message
     if message is None or message.text is None:
@@ -102,21 +159,28 @@ async def _handle_private_message(
 
     if not captcha_service.is_secret_command(message.text):
         await message.reply_text(
-            "Comando non riconosciuto. Leggi il file delle regole del gruppo "
+            "Comando non riconosciuto. Leggi il regolamento "
             "e invia il comando segreto che troverai."
+        )
+        return
+
+    if await captcha_service.is_globally_verified(user.id):
+        await message.reply_text(
+            "Sei già verificato! Puoi partecipare alle discussioni in tutti i gruppi."
         )
         return
 
     pending_chats = await captcha_service.get_pending_chats(user.id)
     if not pending_chats:
         await message.reply_text(
-            "Sei già verificato oppure non hai gruppi in attesa. "
-            "Se hai appena fatto il captcha, potrebbe essere già stato applicato."
+            "Non hai gruppi in attesa di verifica. "
+            "Se hai appena inviato il comando, la verifica potrebbe essere già stata applicata."
         )
         return
 
+    await captcha_service.verify_user_globally(user.id)
+
     for chat_id in pending_chats:
-        await captcha_service.verify_user(user.id, chat_id)
         try:
             await context.bot.restrict_chat_member(
                 chat_id=chat_id,
@@ -129,5 +193,6 @@ async def _handle_private_message(
             )
 
     await message.reply_text(
-        "Verifica completata! Ora puoi partecipare alle discussioni nei gruppi Python Italia."
+        "Verifica completata! Ora puoi partecipare alle discussioni "
+        "in tutti i gruppi Python Italia."
     )
