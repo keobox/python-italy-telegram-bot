@@ -8,6 +8,7 @@ from .config import Settings
 from .db import create_repository
 from .handlers.id import create_id_handlers
 from .handlers.moderation import create_moderation_handlers
+from .handlers.settings import create_settings_handlers
 from .handlers.spam import create_spam_handler
 from .handlers.welcome import create_welcome_handlers
 from .services.captcha import CaptchaService
@@ -30,6 +31,7 @@ async def _post_init(application) -> None:
         repository,
         secret_command=settings.captcha_secret_command,
         file_path=settings.captcha_file_path,
+        rules_url=settings.rules_url,
     )
     moderation_service = ModerationService(repository)
     spam_detector = SpamDetector()
@@ -39,13 +41,15 @@ async def _post_init(application) -> None:
     application.bot_data["moderation_service"] = moderation_service
     application.bot_data["spam_detector"] = spam_detector
 
+    for handler in create_id_handlers():
+        application.add_handler(handler)
+    for handler in create_settings_handlers():
+        application.add_handler(handler)
+    for handler in create_moderation_handlers(moderation_service):
+        application.add_handler(handler)
     for handler in create_welcome_handlers(captcha_service):
         application.add_handler(handler)
     application.add_handler(create_spam_handler(spam_detector))
-    for handler in create_moderation_handlers(moderation_service):
-        application.add_handler(handler)
-    for handler in create_id_handlers():
-        application.add_handler(handler)
 
 
 async def _post_shutdown(application) -> None:
