@@ -5,6 +5,7 @@ import logging
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import CommandHandler, ContextTypes
 
+from .. import strings
 from ..config import Settings
 from ..services.captcha import BUTTON_URL_PATTERN
 from ..services.moderation import ModerationService
@@ -60,40 +61,37 @@ async def _handle_announce(
         return
 
     if chat.type != "private":
-        await message.reply_text("Questo comando funziona solo in chat privata.")
+        await message.reply_text(strings.ONLY_IN_PRIVATE)
         return
 
     if settings.bot_owner_id is None:
-        await message.reply_text("BOT_OWNER_ID non configurato.")
+        await message.reply_text(strings.ANNOUNCE_NO_OWNER_CONFIGURED)
         return
 
     if user.id != settings.bot_owner_id:
-        await message.reply_text("Solo il proprietario del bot può usare questo comando.")
+        await message.reply_text(strings.ANNOUNCE_OWNER_ONLY)
         return
 
     raw_text = message.text or ""
     announcement = raw_text.partition(" ")[2].strip()
 
     if not announcement:
-        await message.reply_text(
-            "Uso: /announce <messaggio>\n\n"
-            "Supporta HTML e bottoni: [Testo](buttonurl://url)"
-        )
+        await message.reply_text(strings.ANNOUNCE_USAGE)
         return
 
     clean_text, keyboard = _parse_button_urls(announcement)
 
     if not clean_text:
-        await message.reply_text("Il messaggio non può essere vuoto.")
+        await message.reply_text(strings.ANNOUNCE_EMPTY_MESSAGE)
         return
 
     chat_ids = await moderation_service.get_all_chats()
 
     if not chat_ids:
-        await message.reply_text("Nessun gruppo registrato.")
+        await message.reply_text(strings.ANNOUNCE_NO_GROUPS)
         return
 
-    await message.reply_text(f"Invio annuncio a {len(chat_ids)} gruppi...")
+    await message.reply_text(strings.ANNOUNCE_SENDING.format(count=len(chat_ids)))
 
     success = 0
     failed = 0
@@ -111,7 +109,7 @@ async def _handle_announce(
             failed += 1
             logger.warning("Failed to send announcement to %s: %s", chat_id, e)
 
-    await message.reply_text(f"Annuncio inviato: {success} ok, {failed} falliti.")
+    await message.reply_text(strings.announce_result(success, failed))
 
 
 def create_announce_handlers(

@@ -3,6 +3,8 @@
 from telegram import Update
 from telegram.ext import CommandHandler, ContextTypes
 
+from .. import strings
+
 
 def create_id_handlers() -> list:
     """Create the /id command handler."""
@@ -18,4 +20,6 @@ async def _handle_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     if chat is None or user is None or message is None:
         return
 
-    await message.reply_text(f"ID chat: {chat.id}\nID utente: {user.id}")
+    await message.reply_text(
+        strings.ID_RESPONSE.format(chat_id=chat.id, user_id=user.id)
+    )

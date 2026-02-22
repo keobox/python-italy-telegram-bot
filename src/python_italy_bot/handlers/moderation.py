@@ -7,6 +7,7 @@ from telegram import Update
 from telegram.constants import ChatMemberStatus
 from telegram.ext import CommandHandler, ContextTypes, MessageHandler, filters
 
+from .. import strings
 from ..services.moderation import ModerationService
 
 logger = logging.getLogger(__name__)
@@ -55,17 +56,15 @@ async def _handle_force_group_registration(
 
     chat = update.effective_chat
     if chat is None or chat.type == "private":
-        await message.reply_text("Questo comando funziona solo nei gruppi.")
+        await message.reply_text(strings.ONLY_IN_GROUPS)
         return
 
     if not await _is_admin(context, chat.id, message.from_user.id):
-        await message.reply_text(
-            "Solo gli amministratori possono usare questo comando."
-        )
+        await message.reply_text(strings.ONLY_ADMINS)
         return
 
     await moderation_service.register_chat(chat.id)
-    await message.reply_text(f"Gruppo registrato. Chat ID: {chat.id}")
+    await message.reply_text(strings.GROUP_REGISTERED.format(chat_id=chat.id))
 
 
 async def _handle_ban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -80,9 +79,7 @@ async def _handle_ban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         return
 
     if not await _is_admin(context, chat.id, message.from_user.id):
-        await message.reply_text(
-            "Solo gli amministratori possono usare questo comando."
-        )
+        await message.reply_text(strings.ONLY_ADMINS)
         return
 
     args = message.text.split(maxsplit=2)[1:] if message.text else []
@@ -98,9 +95,7 @@ async def _handle_ban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         user_id = await _resolve_user_id(context, chat.id, target)
 
     if user_id is None:
-        await message.reply_text(
-            "Uso: /ban user_id [motivo], o rispondi al messaggio con /ban [motivo]."
-        )
+        await message.reply_text(strings.BAN_USAGE)
         return
 
     chat_ids = await moderation_service.add_global_ban(
@@ -117,11 +112,7 @@ async def _handle_ban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             logger.debug("Ban in chat %s failed: %s", cid, e)
             fail_count += 1
 
-    msg = f"Utente bannato globalmente in {success_count} gruppi."
-    if fail_count > 0:
-        msg += f" ({fail_count} falliti)"
-    msg += f"\nMotivo: {reason or 'Nessuno'}"
-    await message.reply_text(msg)
+    await message.reply_text(strings.ban_success(success_count, fail_count, reason))
 
 
 async def _handle_unban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -136,9 +127,7 @@ async def _handle_unban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         return
 
     if not await _is_admin(context, chat.id, message.from_user.id):
-        await message.reply_text(
-            "Solo gli amministratori possono usare questo comando."
-        )
+        await message.reply_text(strings.ONLY_ADMINS)
         return
 
     args = message.text.split(maxsplit=1)[1:] if message.text else []
@@ -149,9 +138,7 @@ async def _handle_unban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         user_id = await _resolve_user_id(context, chat.id, args[0])
 
     if user_id is None:
-        await message.reply_text(
-            "Uso: /unban user_id, o rispondi al messaggio con /unban"
-        )
+        await message.reply_text(strings.UNBAN_USAGE)
         return
 
     chat_ids = await moderation_service.remove_global_ban(user_id)
@@ -166,10 +153,7 @@ async def _handle_unban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             logger.debug("Unban in chat %s failed: %s", cid, e)
             fail_count += 1
 
-    msg = f"Utente sbannato globalmente da {success_count} gruppi."
-    if fail_count > 0:
-        msg += f" ({fail_count} falliti)"
-    await message.reply_text(msg)
+    await message.reply_text(strings.unban_success(success_count, fail_count))
 
 
 async def _handle_mute(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -184,9 +168,7 @@ async def _handle_mute(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     if not await _is_admin(context, chat.id, message.from_user.id):
-        await message.reply_text(
-            "Solo gli amministratori possono usare questo comando."
-        )
+        await message.reply_text(strings.ONLY_ADMINS)
         return
 
     args = message.text.split(maxsplit=3)[1:] if message.text else []
@@ -212,11 +194,9 @@ async def _handle_mute(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         user_id = await _resolve_user_id(context, chat.id, target)
 
     if user_id is None:
-        await message.reply_text(
-            "Uso: /mute @username [minuti] [motivo], o rispondi al messaggio"
-        )
+        await message.reply_text(strings.MUTE_USAGE)
     if user_id is None:
-        await message.reply_text("Utente non trovato.")
+        await message.reply_text(strings.USER_NOT_FOUND)
         return
 
     until = None
@@ -239,15 +219,10 @@ async def _handle_mute(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             reason=reason,
             until=until,
         )
-        msg = "Utente mutato"
-        if duration:
-            msg += f" per {duration} minuti"
-        if reason:
-            msg += f". Motivo: {reason}"
-        await message.reply_text(msg)
+        await message.reply_text(strings.mute_success(duration, reason))
     except Exception as e:
         logger.warning("Mute failed: %s", e)
-        await message.reply_text("Impossibile mutare l'utente.")
+        await message.reply_text(strings.MUTE_FAILED)
 
 
 async def _handle_unmute(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -262,9 +237,7 @@ async def _handle_unmute(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return
 
     if not await _is_admin(context, chat.id, message.from_user.id):
-        await message.reply_text(
-            "Solo gli amministratori possono usare questo comando."
-        )
+        await message.reply_text(strings.ONLY_ADMINS)
         return
 
     args = message.text.split(maxsplit=1)[1:] if message.text else []
@@ -275,11 +248,9 @@ async def _handle_unmute(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         user_id = await _resolve_user_id(context, chat.id, args[0])
 
     if user_id is None:
-        await message.reply_text(
-            "Uso: /unmute @username, /unmute user_id, o rispondi al messaggio"
-        )
+        await message.reply_text(strings.UNMUTE_USAGE)
     if user_id is None:
-        await message.reply_text("Utente non trovato.")
+        await message.reply_text(strings.USER_NOT_FOUND)
         return
 
     from telegram import ChatPermissions
@@ -303,10 +274,10 @@ async def _handle_unmute(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     try:
         await context.bot.restrict_chat_member(chat.id, user_id, full_perms)
         await moderation_service.remove_mute(user_id, chat.id)
-        await message.reply_text("Utente smutato.")
+        await message.reply_text(strings.UNMUTE_SUCCESS)
     except Exception as e:
         logger.warning("Unmute failed: %s", e)
-        await message.reply_text("Impossibile smutare l'utente.")
+        await message.reply_text(strings.UNMUTE_FAILED)
 
 
 async def _handle_report(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -333,9 +304,7 @@ async def _handle_report(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         message_id = message.reply_to_message.message_id
 
     if reported_user_id is None or reported_user is None:
-        await message.reply_text(
-            "Rispondi al messaggio da segnalare con /report [motivo]"
-        )
+        await message.reply_text(strings.REPORT_USAGE)
         return
 
     await moderation_service.add_report(
@@ -355,9 +324,7 @@ async def _handle_report(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         reason=reason,
     )
 
-    await message.reply_text(
-        "Segnalazione inviata. Gli amministratori la esamineranno."
-    )
+    await message.reply_text(strings.REPORT_SUCCESS)
     logger.info(
         "Report: %s reported %s in chat %s",
         message.from_user.id,
@@ -389,9 +356,7 @@ async def _handle_admin_mention(
         reason=reason,
     )
 
-    await message.reply_text(
-        "Richiesta inviata. Gli amministratori interverranno."
-    )
+    await message.reply_text(strings.ADMIN_REQUEST_SUCCESS)
     logger.info(
         "Admin request: %s in chat %s",
         message.from_user.id,

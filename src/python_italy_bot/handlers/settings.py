@@ -6,6 +6,7 @@ from telegram import Update
 from telegram.constants import ChatMemberStatus
 from telegram.ext import CommandHandler, ContextTypes
 
+from .. import strings
 from ..services.captcha import CaptchaService
 
 logger = logging.getLogger(__name__)
@@ -55,13 +56,11 @@ async def _handle_setwelcome(
 
     chat = update.effective_chat
     if chat is None or chat.type == "private":
-        await message.reply_text("Questo comando funziona solo nei gruppi.")
+        await message.reply_text(strings.ONLY_IN_GROUPS)
         return
 
     if not await _is_admin(context, chat.id, message.from_user.id):
-        await message.reply_text(
-            "Solo gli amministratori possono usare questo comando."
-        )
+        await message.reply_text(strings.ONLY_ADMINS)
         return
 
     if message.text is None:
@@ -69,19 +68,12 @@ async def _handle_setwelcome(
 
     parts = message.text.split(maxsplit=1)
     if len(parts) < 2:
-        await message.reply_text(
-            "Uso: /setwelcome <messaggio>\n\n"
-            "Placeholder disponibili:\n"
-            "  {username} - @username o nome completo\n"
-            "  {chatname} - nome del gruppo\n\n"
-            "Sintassi bottoni:\n"
-            "  [Testo](buttonurl://URL)"
-        )
+        await message.reply_text(strings.SETWELCOME_USAGE)
         return
 
     welcome_message = parts[1]
     await captcha_service.set_welcome_message(chat.id, welcome_message)
-    await message.reply_text("Messaggio di benvenuto impostato!")
+    await message.reply_text(strings.SETWELCOME_SUCCESS)
     logger.info(
         "Welcome message set for chat %s by admin %s",
         chat.id,
@@ -100,17 +92,15 @@ async def _handle_resetwelcome(
 
     chat = update.effective_chat
     if chat is None or chat.type == "private":
-        await message.reply_text("Questo comando funziona solo nei gruppi.")
+        await message.reply_text(strings.ONLY_IN_GROUPS)
         return
 
     if not await _is_admin(context, chat.id, message.from_user.id):
-        await message.reply_text(
-            "Solo gli amministratori possono usare questo comando."
-        )
+        await message.reply_text(strings.ONLY_ADMINS)
         return
 
     await captcha_service.set_welcome_message(chat.id, None)
-    await message.reply_text("Messaggio di benvenuto ripristinato al default.")
+    await message.reply_text(strings.RESETWELCOME_SUCCESS)
     logger.info(
         "Welcome message reset for chat %s by admin %s",
         chat.id,
@@ -129,23 +119,21 @@ async def _handle_getwelcome(
 
     chat = update.effective_chat
     if chat is None or chat.type == "private":
-        await message.reply_text("Questo comando funziona solo nei gruppi.")
+        await message.reply_text(strings.ONLY_IN_GROUPS)
         return
 
     if not await _is_admin(context, chat.id, message.from_user.id):
-        await message.reply_text(
-            "Solo gli amministratori possono usare questo comando."
-        )
+        await message.reply_text(strings.ONLY_ADMINS)
         return
 
     custom_message = await captcha_service.get_welcome_message(chat.id)
     if custom_message:
         await message.reply_text(
-            f"Messaggio di benvenuto attuale:\n\n{custom_message}"
+            strings.GETWELCOME_CUSTOM.format(message=custom_message)
         )
     else:
         bot_username = (await context.bot.get_me()).username or "bot"
         default = captcha_service.get_default_welcome_template(bot_username)
         await message.reply_text(
-            f"Nessun messaggio personalizzato. Default:\n\n{default}"
+            strings.GETWELCOME_DEFAULT.format(message=default)
         )

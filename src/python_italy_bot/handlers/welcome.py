@@ -12,6 +12,7 @@ from telegram.ext import (
     filters,
 )
 
+from .. import strings
 from ..services.captcha import CaptchaService
 from ..services.moderation import ModerationService
 
@@ -134,27 +135,22 @@ async def _handle_start(
         rules_url = captcha_service.get_rules_url()
         if rules_url:
             await message.reply_text(
-                f"Per completare la verifica, leggi il regolamento:\n{rules_url}\n\n"
-                "Dopo averlo letto, clicca sul link 'Ho letto il CoC' in fondo alla pagina."
+                strings.VERIFY_READ_RULES_URL.format(rules_url=rules_url)
             )
         else:
             captcha_content = captcha_service.get_captcha_file_content()
             if captcha_content:
                 await message.reply_text(
-                    "Ecco il regolamento. Leggilo e invia il comando segreto che troverai:\n\n"
-                    f"{captcha_content[:4000]}"
+                    strings.VERIFY_READ_RULES_CONTENT.format(
+                        content=captcha_content[:4000]
+                    )
                 )
             else:
-                await message.reply_text(
-                    "Invia il comando segreto per completare la verifica."
-                )
+                await message.reply_text(strings.VERIFY_SEND_SECRET)
     elif args and args[0] == "CoCDoneLink":
         await _verify_user(user, captcha_service, context, message)
     else:
-        await message.reply_text(
-            "Ciao! Sono il bot di Python Italia.\n"
-            "Se devi completare la verifica per un gruppo, usa il pulsante nel messaggio di benvenuto."
-        )
+        await message.reply_text(strings.START_GREETING)
 
 
 async def _verify_user(
@@ -165,17 +161,12 @@ async def _verify_user(
 ) -> None:
     """Verify a user globally and unrestrict in all pending groups."""
     if await captcha_service.is_globally_verified(user.id):
-        await message.reply_text(
-            "Sei già verificato! Puoi partecipare alle discussioni in tutti i gruppi."
-        )
+        await message.reply_text(strings.VERIFY_ALREADY_VERIFIED)
         return
 
     pending_chats = await captcha_service.get_pending_chats(user.id)
     if not pending_chats:
-        await message.reply_text(
-            "Non hai gruppi in attesa di verifica. "
-            "Se hai appena completato la verifica, potrebbe essere già stata applicata."
-        )
+        await message.reply_text(strings.VERIFY_NO_PENDING)
         return
 
     await captcha_service.verify_user_globally(user.id)
@@ -192,10 +183,7 @@ async def _verify_user(
                 "Could not unrestrict user %s in chat %s: %s", user.id, chat_id, e
             )
 
-    await message.reply_text(
-        "Verifica completata! Ora puoi partecipare alle discussioni "
-        "in tutti i gruppi Python Italia."
-    )
+    await message.reply_text(strings.VERIFY_SUCCESS)
 
 
 async def _handle_private_message(
@@ -213,10 +201,7 @@ async def _handle_private_message(
         return
 
     if not captcha_service.is_secret_command(message.text):
-        await message.reply_text(
-            "Comando non riconosciuto. Leggi il regolamento "
-            "e invia il comando segreto che troverai."
-        )
+        await message.reply_text(strings.VERIFY_UNKNOWN_COMMAND)
         return
 
     await _verify_user(user, captcha_service, context, message)

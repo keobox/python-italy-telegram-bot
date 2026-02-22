@@ -5,6 +5,7 @@ from pathlib import Path
 
 from telegram import Chat, ChatPermissions, InlineKeyboardButton, InlineKeyboardMarkup, User
 
+from .. import strings
 from ..db.base import AsyncRepository
 
 BUTTON_URL_PATTERN = re.compile(r"\[([^\]]+)\]\(buttonurl://([^)]+)\)")
@@ -30,10 +31,7 @@ class CaptchaService:
 
     def get_default_welcome_template(self, bot_username: str) -> str:
         """Return the default welcome message template with placeholders."""
-        return (
-            "Benvenuto {username}! Per partecipare alle discussioni, leggi il regolamento.\n"
-            f"[Verifica](buttonurl://t.me/{bot_username}?start=verify)"
-        )
+        return strings.get_default_welcome_template(bot_username)
 
     def format_welcome_message(
         self, template: str, user: User, chat: Chat, bot_username: str
