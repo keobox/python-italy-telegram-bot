@@ -25,7 +25,7 @@ class SpamDetector:
     ) -> None:
         self._max_messages_per_minute = max_messages_per_minute
         self._duplicate_threshold_seconds = duplicate_threshold_seconds
-        self._message_history: dict[int, list[datetime]] = defaultdict(list)
+        self._message_history: dict[int, list[datetime]] = defaultdict[int, list[datetime]](list)
         self._last_message_text: dict[int, tuple[str, datetime]] = {}
 
     def _clean_old_entries(self, user_id: int) -> None:
