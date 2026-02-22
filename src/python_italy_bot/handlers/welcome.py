@@ -123,7 +123,7 @@ async def _handle_start(
         if rules_url:
             await message.reply_text(
                 f"Per completare la verifica, leggi il regolamento:\n{rules_url}\n\n"
-                "Dopo averlo letto, invia il comando segreto che troverai."
+                "Dopo averlo letto, clicca sul link 'Ho letto il CoC' in fondo alla pagina."
             )
         else:
             captcha_content = captcha_service.get_captcha_file_content()
@@ -136,11 +136,54 @@ async def _handle_start(
                 await message.reply_text(
                     "Invia il comando segreto per completare la verifica."
                 )
+    elif args and args[0] == "CoCDoneLink":
+        await _verify_user(user, captcha_service, context, message)
     else:
         await message.reply_text(
             "Ciao! Sono il bot di Python Italia.\n"
             "Se devi completare la verifica per un gruppo, usa il pulsante nel messaggio di benvenuto."
         )
+
+
+async def _verify_user(
+    user,
+    captcha_service: CaptchaService,
+    context: ContextTypes.DEFAULT_TYPE,
+    message,
+) -> None:
+    """Verify a user globally and unrestrict in all pending groups."""
+    if await captcha_service.is_globally_verified(user.id):
+        await message.reply_text(
+            "Sei già verificato! Puoi partecipare alle discussioni in tutti i gruppi."
+        )
+        return
+
+    pending_chats = await captcha_service.get_pending_chats(user.id)
+    if not pending_chats:
+        await message.reply_text(
+            "Non hai gruppi in attesa di verifica. "
+            "Se hai appena completato la verifica, potrebbe essere già stata applicata."
+        )
+        return
+
+    await captcha_service.verify_user_globally(user.id)
+
+    for chat_id in pending_chats:
+        try:
+            await context.bot.restrict_chat_member(
+                chat_id=chat_id,
+                user_id=user.id,
+                permissions=captcha_service.get_full_permissions(),
+            )
+        except Exception as e:
+            logger.warning(
+                "Could not unrestrict user %s in chat %s: %s", user.id, chat_id, e
+            )
+
+    await message.reply_text(
+        "Verifica completata! Ora puoi partecipare alle discussioni "
+        "in tutti i gruppi Python Italia."
+    )
 
 
 async def _handle_private_message(
@@ -164,35 +207,4 @@ async def _handle_private_message(
         )
         return
 
-    if await captcha_service.is_globally_verified(user.id):
-        await message.reply_text(
-            "Sei già verificato! Puoi partecipare alle discussioni in tutti i gruppi."
-        )
-        return
-
-    pending_chats = await captcha_service.get_pending_chats(user.id)
-    if not pending_chats:
-        await message.reply_text(
-            "Non hai gruppi in attesa di verifica. "
-            "Se hai appena inviato il comando, la verifica potrebbe essere già stata applicata."
-        )
-        return
-
-    await captcha_service.verify_user_globally(user.id)
-
-    for chat_id in pending_chats:
-        try:
-            await context.bot.restrict_chat_member(
-                chat_id=chat_id,
-                user_id=user.id,
-                permissions=captcha_service.get_full_permissions(),
-            )
-        except Exception as e:
-            logger.warning(
-                "Could not unrestrict user %s in chat %s: %s", user.id, chat_id, e
-            )
-
-    await message.reply_text(
-        "Verifica completata! Ora puoi partecipare alle discussioni "
-        "in tutti i gruppi Python Italia."
-    )
+    await _verify_user(user, captcha_service, context, message)
