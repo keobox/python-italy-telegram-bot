@@ -32,7 +32,12 @@ Official Telegram bot for the main Italian Python group and local sub-groups in 
    # Edit .env and set TELEGRAM_BOT_TOKEN
    ```
 
-4. Run the bot:
+4. If using PostgreSQL (`DATABASE_URL` set), create the schema:
+   ```bash
+   psql "$DATABASE_URL" -f schema.sql
+   ```
+
+5. Run the bot:
    ```bash
    uv run python-italy-bot
    # or: uv run python -m python_italy_bot.main
