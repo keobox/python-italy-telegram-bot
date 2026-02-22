@@ -1,33 +1,89 @@
 """Captcha verification logic (file + secret command flow)."""
 
+import re
 from pathlib import Path
 
-from telegram import ChatPermissions
+from telegram import Chat, ChatPermissions, InlineKeyboardButton, InlineKeyboardMarkup, User
 
 from ..db.base import AsyncRepository
+
+BUTTON_URL_PATTERN = re.compile(r"\[([^\]]+)\]\(buttonurl://([^)]+)\)")
 
 
 class CaptchaService:
     """Handles welcome captcha: restrict new members until they send secret command in DM."""
 
     def __init__(
-        self, repository: AsyncRepository, secret_command: str, file_path: str
+        self,
+        repository: AsyncRepository,
+        secret_command: str,
+        file_path: str,
+        rules_url: str | None = None,
     ) -> None:
         self._repo = repository
         self._secret_command = secret_command.strip().lower()
         self._file_path = Path(file_path)
+        self._rules_url = rules_url
 
     def _matches_secret(self, text: str) -> bool:
         return text.strip().lower() == self._secret_command
 
-    def get_welcome_message(self) -> str:
-        """Return the welcome message with captcha instructions."""
+    def get_default_welcome_template(self, bot_username: str) -> str:
+        """Return the default welcome message template with placeholders."""
         return (
-            "Benvenuto nel gruppo Python Italia! 🐍\n\n"
-            "Per poter partecipare alle discussioni, leggere il file delle regole "
-            "e inviare il comando segreto che troverai al bot in chat privata.\n\n"
-            "Per aprire una chat con il bot, clicca sul suo nome e seleziona 'Avvia'."
+            "Benvenuto {username}! Per partecipare alle discussioni, leggi il regolamento.\n"
+            f"[Verifica](buttonurl://t.me/{bot_username}?start=verify)"
         )
+
+    def format_welcome_message(
+        self, template: str, user: User, chat: Chat, bot_username: str
+    ) -> str:
+        """Substitute placeholders in the welcome message template."""
+        username = f"@{user.username}" if user.username else user.full_name
+        replacements = {
+            "{username}": username,
+            "{chatname}": chat.title or "this group",
+        }
+        result = template
+        for placeholder, value in replacements.items():
+            result = result.replace(placeholder, value)
+        return result
+
+    def parse_button_urls(self, text: str) -> tuple[str, InlineKeyboardMarkup | None]:
+        """Extract buttonurl:// patterns and build InlineKeyboardMarkup.
+        
+        Returns (clean_text, keyboard) where clean_text has button syntax removed.
+        Multiple buttons on the same line become the same row.
+        """
+        lines = text.split("\n")
+        keyboard_rows: list[list[InlineKeyboardButton]] = []
+        clean_lines: list[str] = []
+
+        for line in lines:
+            matches = list(BUTTON_URL_PATTERN.finditer(line))
+            if matches:
+                row = [
+                    InlineKeyboardButton(text=m.group(1), url=m.group(2))
+                    for m in matches
+                ]
+                keyboard_rows.append(row)
+                clean_line = BUTTON_URL_PATTERN.sub("", line).strip()
+                if clean_line:
+                    clean_lines.append(clean_line)
+            else:
+                clean_lines.append(line)
+
+        clean_text = "\n".join(clean_lines).strip()
+        keyboard = InlineKeyboardMarkup(keyboard_rows) if keyboard_rows else None
+        return clean_text, keyboard
+
+    def get_deep_link_url(self, bot_username: str) -> str:
+        """Generate the deep link URL for verification."""
+        return f"https://t.me/{bot_username}?start=verify"
+
+    def get_rules_url(self) -> str | None:
+        """Return the configured rules URL."""
+        return self._rules_url
 
     def get_captcha_file_content(self) -> str | None:
         """Return the captcha file content if it exists. Path is relative to cwd."""
@@ -80,19 +136,29 @@ class CaptchaService:
         """Check if the message matches the secret command."""
         return self._matches_secret(text)
 
+    async def get_welcome_message(self, chat_id: int) -> str | None:
+        """Get custom welcome message for a chat, or None for default."""
+        return await self._repo.get_welcome_message(chat_id)
+
+    async def set_welcome_message(self, chat_id: int, message: str | None) -> None:
+        """Set or remove custom welcome message for a chat."""
+        await self._repo.set_welcome_message(chat_id, message)
+
     async def get_pending_chats(self, user_id: int) -> list[int]:
         """Get chats where user is pending verification."""
         return await self._repo.get_pending_chats(user_id)
 
-    async def verify_user(self, user_id: int, chat_id: int) -> None:
-        """Mark user as verified and remove from pending."""
-        await self._repo.mark_user_verified(user_id, chat_id)
-        await self._repo.remove_pending(user_id, chat_id)
+    async def verify_user_globally(self, user_id: int) -> None:
+        """Mark user as globally verified and remove from all pending."""
+        await self._repo.mark_globally_verified(user_id)
+        pending_chats = await self._repo.get_pending_chats(user_id)
+        for chat_id in pending_chats:
+            await self._repo.remove_pending(user_id, chat_id)
 
     async def add_pending(self, user_id: int, chat_id: int) -> None:
         """Record that user joined and needs verification."""
         await self._repo.add_pending_verification(user_id, chat_id)
 
-    async def is_verified(self, user_id: int, chat_id: int) -> bool:
-        """Check if user is verified for the chat."""
-        return await self._repo.is_user_verified(user_id, chat_id)
+    async def is_globally_verified(self, user_id: int) -> bool:
+        """Check if user is globally verified."""
+        return await self._repo.is_globally_verified(user_id)
