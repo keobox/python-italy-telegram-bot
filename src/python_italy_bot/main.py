@@ -6,6 +6,7 @@ from telegram.ext import ApplicationBuilder
 
 from .config import Settings
 from .db import create_repository
+from .handlers.announce import create_announce_handlers
 from .handlers.id import create_id_handlers
 from .handlers.moderation import create_moderation_handlers
 from .handlers.settings import create_settings_handlers
@@ -48,6 +49,8 @@ async def _post_init(application) -> None:
     for handler in create_moderation_handlers(moderation_service):
         application.add_handler(handler)
     for handler in create_welcome_handlers(captcha_service):
+        application.add_handler(handler)
+    for handler in create_announce_handlers(moderation_service, settings):
         application.add_handler(handler)
     application.add_handler(create_spam_handler(spam_detector))
 
