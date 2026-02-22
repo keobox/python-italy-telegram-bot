@@ -158,5 +158,54 @@ class PostgresRepository(AsyncRepository):
                 (reporter_id, reported_user_id, chat_id, message_id, reason),
             )
 
+    async def get_welcome_message(self, chat_id: int) -> str | None:
+        async with self._pool.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT welcome_message FROM group_settings WHERE chat_id = %s",
+                    (chat_id,),
+                )
+                row = await cur.fetchone()
+                return row[0] if row else None
+
+    async def set_welcome_message(self, chat_id: int, message: str | None) -> None:
+        async with self._pool.connection() as conn:
+            if message is None:
+                await conn.execute(
+                    "DELETE FROM group_settings WHERE chat_id = %s",
+                    (chat_id,),
+                )
+            else:
+                await conn.execute(
+                    """
+                    INSERT INTO group_settings (chat_id, welcome_message, updated_at)
+                    VALUES (%s, %s, NOW())
+                    ON CONFLICT (chat_id)
+                    DO UPDATE SET welcome_message = EXCLUDED.welcome_message,
+                                  updated_at = NOW()
+                    """,
+                    (chat_id, message),
+                )
+
+    async def is_globally_verified(self, user_id: int) -> bool:
+        async with self._pool.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT 1 FROM globally_verified_users WHERE user_id = %s",
+                    (user_id,),
+                )
+                return await cur.fetchone() is not None
+
+    async def mark_globally_verified(self, user_id: int) -> None:
+        async with self._pool.connection() as conn:
+            await conn.execute(
+                """
+                INSERT INTO globally_verified_users (user_id, verified_at)
+                VALUES (%s, NOW())
+                ON CONFLICT (user_id) DO NOTHING
+                """,
+                (user_id,),
+            )
+
     async def close(self) -> None:
         await self._pool.close()
