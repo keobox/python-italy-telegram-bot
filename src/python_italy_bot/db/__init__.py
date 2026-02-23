@@ -26,7 +26,12 @@ async def create_repository(database_url: str | None) -> AsyncRepository:
     if database_url and database_url.startswith("postgresql"):
         from psycopg_pool import AsyncConnectionPool
 
-        pool = AsyncConnectionPool(database_url, open=False)
+        pool = AsyncConnectionPool(
+            database_url,
+            open=False,
+            check=AsyncConnectionPool.check_connection,
+            max_lifetime=300,
+        )
         await pool.open()
         return PostgresRepository(pool)
     return InMemoryRepository()
