@@ -82,7 +82,7 @@ async def _handle_new_member(
     if user is None or chat is None:
         return
 
-    await moderation_service.register_chat(chat.id)
+    await moderation_service.register_chat(chat.id, chat.title)
 
     # Track the new member explicitly: middleware tracks effective_user (the admin
     # when someone is added by an admin), but we need to track the joined member.
