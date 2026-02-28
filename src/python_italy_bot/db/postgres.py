@@ -3,7 +3,7 @@
 from psycopg_pool import AsyncConnectionPool
 
 from .base import AsyncRepository
-from .models import KnownUser
+from .models import Chat, KnownUser
 
 
 class PostgresRepository(AsyncRepository):
@@ -208,15 +208,15 @@ class PostgresRepository(AsyncRepository):
                 (user_id,),
             )
 
-    async def register_chat(self, chat_id: int) -> None:
+    async def register_chat(self, chat_id: int, title: str | None = None) -> None:
         async with self._pool.connection() as conn:
             await conn.execute(
                 """
-                INSERT INTO bot_chats (chat_id)
-                VALUES (%s)
-                ON CONFLICT (chat_id) DO NOTHING
+                INSERT INTO bot_chats (chat_id, title)
+                VALUES (%s, %s)
+                ON CONFLICT (chat_id) DO UPDATE SET title = EXCLUDED.title
                 """,
-                (chat_id,),
+                (chat_id, title),
             )
 
     async def get_all_chats(self) -> list[int]:
@@ -225,6 +225,25 @@ class PostgresRepository(AsyncRepository):
                 await cur.execute("SELECT chat_id FROM bot_chats")
                 rows = await cur.fetchall()
                 return [row[0] for row in rows]
+
+    async def get_all_chats_with_titles(self) -> list[Chat]:
+        async with self._pool.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT chat_id, title FROM bot_chats ORDER BY chat_id"
+                )
+                rows = await cur.fetchall()
+                return [Chat(chat_id=row[0], title=row[1]) for row in rows]
+
+    async def find_chats_by_title(self, query: str) -> list[Chat]:
+        async with self._pool.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT chat_id, title FROM bot_chats WHERE title ILIKE %s",
+                    (f"%{query}%",),
+                )
+                rows = await cur.fetchall()
+                return [Chat(chat_id=row[0], title=row[1]) for row in rows]
 
     async def add_global_ban(
         self,

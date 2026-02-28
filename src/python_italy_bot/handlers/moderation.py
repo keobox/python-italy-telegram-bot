@@ -64,7 +64,7 @@ async def _handle_force_group_registration(
         await message.reply_text(strings.ONLY_ADMINS)
         return
 
-    await moderation_service.register_chat(chat.id)
+    await moderation_service.register_chat(chat.id, chat.title)
     await message.reply_text(strings.GROUP_REGISTERED.format(chat_id=chat.id))
 
 

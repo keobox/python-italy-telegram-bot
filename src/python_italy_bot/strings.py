@@ -190,11 +190,24 @@ ID_RESPONSE = "ID chat: {chat_id}\nID utente: {user_id}"
 ANNOUNCE_OWNER_ONLY = "Solo il proprietario del bot può usare questo comando."
 ANNOUNCE_NO_OWNER_CONFIGURED = "BOT_OWNER_ID non configurato."
 ANNOUNCE_USAGE = (
-    "Uso: /announce <messaggio>\n\nSupporta HTML e bottoni: [Testo](buttonurl://url)"
+    "Uso: /announce <messaggio>\n"
+    "Uso mirato: /announce <gruppo> | <messaggio>\n\n"
+    "Il gruppo può essere un ID numerico, @username o nome del gruppo.\n"
+    "Supporta HTML e bottoni: [Testo](buttonurl://url)"
 )
 ANNOUNCE_EMPTY_MESSAGE = "Il messaggio non può essere vuoto."
 ANNOUNCE_NO_GROUPS = "Nessun gruppo registrato."
 ANNOUNCE_SENDING = "Invio annuncio a {count} gruppi..."
+ANNOUNCE_SENDING_TARGETED = "Invio annuncio a {name}..."
+ANNOUNCE_GROUP_NOT_FOUND = "Gruppo non trovato: {target}"
+ANNOUNCE_AMBIGUOUS_GROUPS = (
+    'Più gruppi corrispondono a "{query}":\n{matches}\n\n'
+    "Specifica l'ID del gruppo per evitare ambiguità."
+)
+
+GROUPS_LIST_HEADER = "Gruppi registrati ({count}):"
+GROUPS_LIST_ROW = "  {chat_id} — {title}"
+GROUPS_LIST_EMPTY = "Nessun gruppo registrato."
 
 
 def announce_result(success: int, failed: int) -> str:

@@ -48,3 +48,11 @@ class Report:
     message_id: int | None
     reason: str | None
     created_at: datetime
+
+
+@dataclass
+class Chat:
+    """A tracked chat where the bot is active."""
+
+    chat_id: int
+    title: str | None

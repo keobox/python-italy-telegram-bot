@@ -3,7 +3,7 @@
 from telegram import ChatPermissions
 
 from ..db.base import AsyncRepository
-from ..db.models import KnownUser
+from ..db.models import Chat, KnownUser
 
 
 class ModerationService:
@@ -61,13 +61,21 @@ class ModerationService:
         """Check if user is globally banned."""
         return await self._repo.is_globally_banned(user_id)
 
-    async def register_chat(self, chat_id: int) -> None:
+    async def register_chat(self, chat_id: int, title: str | None = None) -> None:
         """Register a chat where the bot is active."""
-        await self._repo.register_chat(chat_id)
+        await self._repo.register_chat(chat_id, title)
 
     async def get_all_chats(self) -> list[int]:
         """Get all tracked chat IDs."""
         return await self._repo.get_all_chats()
+
+    async def get_all_chats_with_titles(self) -> list[Chat]:
+        """Get all tracked chats with their titles."""
+        return await self._repo.get_all_chats_with_titles()
+
+    async def find_chats_by_title(self, query: str) -> list[Chat]:
+        """Find tracked chats whose title contains the query (case-insensitive)."""
+        return await self._repo.find_chats_by_title(query)
 
     async def add_mute(
         self,
