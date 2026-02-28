@@ -4,6 +4,8 @@ All user-facing Italian strings for the bot, themed around Matrix (Neo/Electus)
 and Python programming metaphors.
 """
 
+import html
+
 BOT_NAME = "Electus"
 
 # =============================================================================
@@ -90,13 +92,15 @@ def ban_notification(
     reason: str | None,
 ) -> str:
     """Format ban notification message for admins."""
-    text = f"<b>{chat_title}:</b>\n"
-    text += f'Utente bannato: <a href="tg://user?id={banned_id}">{banned_name}</a> ({banned_id})\n'
-    text += (
-        f'Bannato da: <a href="tg://user?id={admin_id}">{admin_name}</a> ({admin_id})\n'
-    )
+    safe_chat_title = html.escape(chat_title, quote=True)
+    safe_banned_name = html.escape(banned_name, quote=True)
+    safe_admin_name = html.escape(admin_name, quote=True)
+    safe_reason = html.escape(reason, quote=True) if reason else "Nessuno"
+    text = f"<b>{safe_chat_title}:</b>\n"
+    text += f'Utente bannato: <a href="tg://user?id={banned_id}">{safe_banned_name}</a> ({banned_id})\n'
+    text += f'Bannato da: <a href="tg://user?id={admin_id}">{safe_admin_name}</a> ({admin_id})\n'
     text += f"Gruppi: {success_count}\n"
-    text += f"Motivo: {reason or 'Nessuno'}"
+    text += f"Motivo: {safe_reason}"
     return text
 
 
