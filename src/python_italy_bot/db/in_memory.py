@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 
 from .base import AsyncRepository
-from .models import Ban, Mute, Report
+from .models import Ban, KnownUser, Mute, Report
 
 
 class InMemoryRepository(AsyncRepository):
@@ -19,6 +19,10 @@ class InMemoryRepository(AsyncRepository):
         self._globally_verified: set[int] = set()
         self._bot_chats: set[int] = set()
         self._global_bans: dict[int, tuple[int, str | None]] = {}
+        self._known_users: dict[int, KnownUser] = {}
+        self._username_to_user_id: dict[str, int] = {}
+        self._welcomed: set[tuple[int, int]] = set()
+        self._welcome_delays: dict[int, int] = {}
 
     async def add_pending_verification(self, user_id: int, chat_id: int) -> None:
         self._pending.add((user_id, chat_id))
@@ -159,3 +163,54 @@ class InMemoryRepository(AsyncRepository):
 
     async def is_globally_banned(self, user_id: int) -> bool:
         return user_id in self._global_bans
+
+    # -- Known users --
+
+    async def upsert_known_user(
+        self,
+        user_id: int,
+        username: str | None,
+        first_name: str | None,
+        last_name: str | None,
+    ) -> None:
+        old = self._known_users.get(user_id)
+        if old and old.username:
+            self._username_to_user_id.pop(old.username.lower(), None)
+        user = KnownUser(
+            user_id=user_id,
+            username=username,
+            first_name=first_name,
+            last_name=last_name,
+            updated_at=datetime.now(timezone.utc),
+        )
+        self._known_users[user_id] = user
+        if username:
+            self._username_to_user_id[username.lower()] = user_id
+
+    async def get_known_user(self, user_id: int) -> KnownUser | None:
+        return self._known_users.get(user_id)
+
+    async def get_known_user_by_username(self, username: str) -> KnownUser | None:
+        uid = self._username_to_user_id.get(username.lower())
+        if uid is not None:
+            return self._known_users.get(uid)
+        return None
+
+    # -- Welcomed users --
+
+    async def has_been_welcomed(self, user_id: int, chat_id: int) -> bool:
+        return (user_id, chat_id) in self._welcomed
+
+    async def mark_welcomed(self, user_id: int, chat_id: int) -> None:
+        self._welcomed.add((user_id, chat_id))
+
+    # -- Welcome delay --
+
+    async def get_welcome_delay(self, chat_id: int) -> int | None:
+        return self._welcome_delays.get(chat_id)
+
+    async def set_welcome_delay(self, chat_id: int, minutes: int | None) -> None:
+        if minutes is None:
+            self._welcome_delays.pop(chat_id, None)
+        else:
+            self._welcome_delays[chat_id] = minutes
