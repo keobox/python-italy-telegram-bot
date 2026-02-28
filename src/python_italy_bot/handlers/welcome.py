@@ -16,20 +16,11 @@ from .. import strings
 from ..db.base import AsyncRepository
 from ..services.captcha import CaptchaService
 from ..services.moderation import ModerationService
+from .utils import track_user
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_WELCOME_DELAY_MINUTES = 5
-
-
-async def _track_user(repo: AsyncRepository, user: object) -> None:
-    """Track a Telegram user in the known_users table."""
-    await repo.upsert_known_user(
-        user_id=user.id,  # type: ignore[attr-defined]
-        username=getattr(user, "username", None),
-        first_name=getattr(user, "first_name", None),
-        last_name=getattr(user, "last_name", None),
-    )
 
 
 def create_welcome_handlers(captcha_service: CaptchaService) -> list:
@@ -93,8 +84,9 @@ async def _handle_new_member(
 
     await moderation_service.register_chat(chat.id)
 
-    # Track the user
-    await _track_user(repository, user)
+    # Track the new member explicitly: middleware tracks effective_user (the admin
+    # when someone is added by an admin), but we need to track the joined member.
+    await track_user(repository, user)
 
     if user.is_bot:
         return
@@ -176,7 +168,6 @@ async def _handle_start(
 ) -> None:
     """Handle /start command, including deep link for verification."""
     captcha_service: CaptchaService = context.bot_data["captcha_service"]
-    repository: AsyncRepository = context.bot_data["repository"]
     message = update.message
     if message is None:
         return
@@ -188,9 +179,6 @@ async def _handle_start(
     user = update.effective_user
     if user is None:
         return
-
-    # Track the user
-    await _track_user(repository, user)
 
     args = context.args
     if args and args[0] == "verify":
@@ -254,7 +242,6 @@ async def _handle_private_message(
 ) -> None:
     """Handle private messages: check for secret command and verify user globally."""
     captcha_service: CaptchaService = context.bot_data["captcha_service"]
-    repository: AsyncRepository = context.bot_data["repository"]
     message = update.message
     if message is None or message.text is None:
         return
@@ -262,9 +249,6 @@ async def _handle_private_message(
     user = update.effective_user
     if user is None:
         return
-
-    # Track the user
-    await _track_user(repository, user)
 
     if not captcha_service.is_secret_command(message.text):
         await message.reply_text(strings.VERIFY_UNKNOWN_COMMAND)

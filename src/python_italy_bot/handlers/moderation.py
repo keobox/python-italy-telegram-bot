@@ -14,16 +14,6 @@ from ..services.moderation import ModerationService
 logger = logging.getLogger(__name__)
 
 
-async def _track_user(repo: AsyncRepository, user: object) -> None:
-    """Track a Telegram user in the known_users table."""
-    await repo.upsert_known_user(
-        user_id=user.id,  # type: ignore[attr-defined]
-        username=getattr(user, "username", None),
-        first_name=getattr(user, "first_name", None),
-        last_name=getattr(user, "last_name", None),
-    )
-
-
 async def _is_admin(
     context: ContextTypes.DEFAULT_TYPE, chat_id: int, user_id: int
 ) -> bool:
@@ -81,7 +71,6 @@ async def _handle_force_group_registration(
 async def _handle_ban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Ban a user globally. Usage: /ban user_id|@username [reason] or reply with /ban [reason]."""
     moderation_service: ModerationService = context.bot_data["moderation_service"]
-    repository: AsyncRepository = context.bot_data["repository"]
     message = update.message
     if message is None or message.from_user is None:
         return
@@ -89,9 +78,6 @@ async def _handle_ban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     chat = update.effective_chat
     if chat is None or chat.type == "private":
         return
-
-    # Track the invoking admin
-    await _track_user(repository, message.from_user)
 
     if not await _is_admin(context, chat.id, message.from_user.id):
         await message.reply_text(strings.ONLY_ADMINS)
@@ -152,7 +138,6 @@ async def _handle_ban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 async def _handle_unban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Unban a user globally. Usage: /unban user_id or reply to message with /unban."""
     moderation_service: ModerationService = context.bot_data["moderation_service"]
-    repository: AsyncRepository = context.bot_data["repository"]
     message = update.message
     if message is None or message.from_user is None:
         return
@@ -160,9 +145,6 @@ async def _handle_unban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     chat = update.effective_chat
     if chat is None or chat.type == "private":
         return
-
-    # Track the invoking admin
-    await _track_user(repository, message.from_user)
 
     if not await _is_admin(context, chat.id, message.from_user.id):
         await message.reply_text(strings.ONLY_ADMINS)
@@ -197,7 +179,6 @@ async def _handle_unban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 async def _handle_mute(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Mute a user. Usage: /mute @username [duration_minutes] [reason]."""
     moderation_service: ModerationService = context.bot_data["moderation_service"]
-    repository: AsyncRepository = context.bot_data["repository"]
     message = update.message
     if message is None or message.from_user is None:
         return
@@ -205,9 +186,6 @@ async def _handle_mute(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     chat = update.effective_chat
     if chat is None or chat.type == "private":
         return
-
-    # Track the invoking admin
-    await _track_user(repository, message.from_user)
 
     if not await _is_admin(context, chat.id, message.from_user.id):
         await message.reply_text(strings.ONLY_ADMINS)
@@ -270,7 +248,6 @@ async def _handle_mute(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 async def _handle_unmute(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Unmute a user. Usage: /unmute @username."""
     moderation_service: ModerationService = context.bot_data["moderation_service"]
-    repository: AsyncRepository = context.bot_data["repository"]
     message = update.message
     if message is None or message.from_user is None:
         return
@@ -278,9 +255,6 @@ async def _handle_unmute(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     chat = update.effective_chat
     if chat is None or chat.type == "private":
         return
-
-    # Track the invoking admin
-    await _track_user(repository, message.from_user)
 
     if not await _is_admin(context, chat.id, message.from_user.id):
         await message.reply_text(strings.ONLY_ADMINS)
@@ -329,7 +303,6 @@ async def _handle_unmute(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 async def _handle_report(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Report a message or user. Usage: /report [reason] or reply to message with /report [reason]."""
     moderation_service: ModerationService = context.bot_data["moderation_service"]
-    repository: AsyncRepository = context.bot_data["repository"]
     message = update.message
     if message is None or message.from_user is None:
         return
@@ -337,9 +310,6 @@ async def _handle_report(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     chat = update.effective_chat
     if chat is None or chat.type == "private":
         return
-
-    # Track the reporter
-    await _track_user(repository, message.from_user)
 
     args = message.text.split(maxsplit=1)[1:] if message.text else []
     reason = args[0] if args else None
@@ -387,7 +357,6 @@ async def _handle_admin_mention(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     """Handle @admin mention: notify admins of intervention request (no reply needed)."""
-    repository: AsyncRepository = context.bot_data["repository"]
     message = update.message
     if message is None or message.from_user is None:
         return
@@ -395,9 +364,6 @@ async def _handle_admin_mention(
     chat = update.effective_chat
     if chat is None or chat.type == "private":
         return
-
-    # Track the user
-    await _track_user(repository, message.from_user)
 
     text = message.text or message.caption or ""
     reason = _extract_reason_after_admin(text)
