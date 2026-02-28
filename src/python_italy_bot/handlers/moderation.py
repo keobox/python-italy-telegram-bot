@@ -623,6 +623,13 @@ async def _resolve_user_id(
             known = await moderation_service.get_known_user_by_username(username_lower)
             if known is not None:
                 return known.user_id
+        # Try Telegram API as last resort
+        try:
+            resolved_chat = await context.bot.get_chat(f"@{username_lower}")
+            if resolved_chat.id:
+                return resolved_chat.id
+        except Exception:
+            pass
         return None
     if re.match(r"^-?\d+$", target):
         return int(target)

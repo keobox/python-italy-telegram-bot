@@ -101,7 +101,7 @@ def ban_notification(
 
 
 # Unban
-UNBAN_USAGE = "Uso: /unban user_id, o rispondi al messaggio con /unban"
+UNBAN_USAGE = "Uso: /unban user_id|@username, o rispondi al messaggio con /unban"
 
 
 def unban_success(success_count: int, fail_count: int) -> str:
