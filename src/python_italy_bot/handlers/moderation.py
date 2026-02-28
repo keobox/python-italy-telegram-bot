@@ -8,9 +8,20 @@ from telegram.constants import ChatMemberStatus
 from telegram.ext import CommandHandler, ContextTypes, MessageHandler, filters
 
 from .. import strings
+from ..db.base import AsyncRepository
 from ..services.moderation import ModerationService
 
 logger = logging.getLogger(__name__)
+
+
+async def _track_user(repo: AsyncRepository, user: object) -> None:
+    """Track a Telegram user in the known_users table."""
+    await repo.upsert_known_user(
+        user_id=user.id,  # type: ignore[attr-defined]
+        username=getattr(user, "username", None),
+        first_name=getattr(user, "first_name", None),
+        last_name=getattr(user, "last_name", None),
+    )
 
 
 async def _is_admin(
@@ -68,8 +79,9 @@ async def _handle_force_group_registration(
 
 
 async def _handle_ban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Ban a user globally. Usage: /ban user_id [reason] or reply to message with /ban [reason]"""
+    """Ban a user globally. Usage: /ban user_id|@username [reason] or reply with /ban [reason]."""
     moderation_service: ModerationService = context.bot_data["moderation_service"]
+    repository: AsyncRepository = context.bot_data["repository"]
     message = update.message
     if message is None or message.from_user is None:
         return
@@ -77,6 +89,9 @@ async def _handle_ban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     chat = update.effective_chat
     if chat is None or chat.type == "private":
         return
+
+    # Track the invoking admin
+    await _track_user(repository, message.from_user)
 
     if not await _is_admin(context, chat.id, message.from_user.id):
         await message.reply_text(strings.ONLY_ADMINS)
@@ -86,13 +101,22 @@ async def _handle_ban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     user_id: int | None = None
     reason: str | None = None
-    if message.reply_to_message and message.reply_to_message.from_user:
-        user_id = message.reply_to_message.from_user.id
+    if message.reply_to_message:
+        reply = message.reply_to_message
+        if reply.from_user and not reply.from_user.is_bot:
+            # Replying to a regular user's message
+            user_id = reply.from_user.id
+        else:
+            # Replying to a bot message — check welcome_message_map
+            welcome_map: dict[tuple[int, int], int] = context.bot_data.get(
+                "welcome_message_map", {}
+            )
+            user_id = welcome_map.get((chat.id, reply.message_id))
         reason = " ".join(args) if args else None
     elif args:
         target = args[0]
         reason = args[1] if len(args) > 1 else None
-        user_id = await _resolve_user_id(context, chat.id, target)
+        user_id = await _resolve_user_id(context, chat.id, target, moderation_service)
 
     if user_id is None:
         await message.reply_text(strings.BAN_USAGE)
@@ -114,10 +138,21 @@ async def _handle_ban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     await message.reply_text(strings.ban_success(success_count, fail_count, reason))
 
+    # Notify admins of the ban
+    await _notify_admins_of_ban(
+        context=context,
+        chat=chat,
+        admin=message.from_user,
+        banned_user_id=user_id,
+        success_count=success_count,
+        reason=reason,
+    )
+
 
 async def _handle_unban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Unban a user globally. Usage: /unban user_id or reply to message with /unban"""
+    """Unban a user globally. Usage: /unban user_id or reply to message with /unban."""
     moderation_service: ModerationService = context.bot_data["moderation_service"]
+    repository: AsyncRepository = context.bot_data["repository"]
     message = update.message
     if message is None or message.from_user is None:
         return
@@ -125,6 +160,9 @@ async def _handle_unban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     chat = update.effective_chat
     if chat is None or chat.type == "private":
         return
+
+    # Track the invoking admin
+    await _track_user(repository, message.from_user)
 
     if not await _is_admin(context, chat.id, message.from_user.id):
         await message.reply_text(strings.ONLY_ADMINS)
@@ -135,7 +173,7 @@ async def _handle_unban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     if message.reply_to_message and message.reply_to_message.from_user:
         user_id = message.reply_to_message.from_user.id
     elif args:
-        user_id = await _resolve_user_id(context, chat.id, args[0])
+        user_id = await _resolve_user_id(context, chat.id, args[0], moderation_service)
 
     if user_id is None:
         await message.reply_text(strings.UNBAN_USAGE)
@@ -157,8 +195,9 @@ async def _handle_unban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 
 async def _handle_mute(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Mute a user. Usage: /mute @username [duration_minutes] [reason]"""
+    """Mute a user. Usage: /mute @username [duration_minutes] [reason]."""
     moderation_service: ModerationService = context.bot_data["moderation_service"]
+    repository: AsyncRepository = context.bot_data["repository"]
     message = update.message
     if message is None or message.from_user is None:
         return
@@ -166,6 +205,9 @@ async def _handle_mute(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     chat = update.effective_chat
     if chat is None or chat.type == "private":
         return
+
+    # Track the invoking admin
+    await _track_user(repository, message.from_user)
 
     if not await _is_admin(context, chat.id, message.from_user.id):
         await message.reply_text(strings.ONLY_ADMINS)
@@ -191,7 +233,7 @@ async def _handle_mute(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             reason = args[2] if len(args) > 2 else None
         else:
             reason = args[1] if len(args) > 1 else None
-        user_id = await _resolve_user_id(context, chat.id, target)
+        user_id = await _resolve_user_id(context, chat.id, target, moderation_service)
 
     if user_id is None:
         await message.reply_text(strings.MUTE_USAGE)
@@ -226,8 +268,9 @@ async def _handle_mute(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 
 async def _handle_unmute(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Unmute a user. Usage: /unmute @username"""
+    """Unmute a user. Usage: /unmute @username."""
     moderation_service: ModerationService = context.bot_data["moderation_service"]
+    repository: AsyncRepository = context.bot_data["repository"]
     message = update.message
     if message is None or message.from_user is None:
         return
@@ -235,6 +278,9 @@ async def _handle_unmute(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     chat = update.effective_chat
     if chat is None or chat.type == "private":
         return
+
+    # Track the invoking admin
+    await _track_user(repository, message.from_user)
 
     if not await _is_admin(context, chat.id, message.from_user.id):
         await message.reply_text(strings.ONLY_ADMINS)
@@ -245,7 +291,7 @@ async def _handle_unmute(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if message.reply_to_message and message.reply_to_message.from_user:
         user_id = message.reply_to_message.from_user.id
     elif args:
-        user_id = await _resolve_user_id(context, chat.id, args[0])
+        user_id = await _resolve_user_id(context, chat.id, args[0], moderation_service)
 
     if user_id is None:
         await message.reply_text(strings.UNMUTE_USAGE)
@@ -281,8 +327,9 @@ async def _handle_unmute(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 
 async def _handle_report(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Report a message or user. Usage: /report [reason] or reply to message with /report [reason]"""
+    """Report a message or user. Usage: /report [reason] or reply to message with /report [reason]."""
     moderation_service: ModerationService = context.bot_data["moderation_service"]
+    repository: AsyncRepository = context.bot_data["repository"]
     message = update.message
     if message is None or message.from_user is None:
         return
@@ -290,6 +337,9 @@ async def _handle_report(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     chat = update.effective_chat
     if chat is None or chat.type == "private":
         return
+
+    # Track the reporter
+    await _track_user(repository, message.from_user)
 
     args = message.text.split(maxsplit=1)[1:] if message.text else []
     reason = args[0] if args else None
@@ -337,6 +387,7 @@ async def _handle_admin_mention(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     """Handle @admin mention: notify admins of intervention request (no reply needed)."""
+    repository: AsyncRepository = context.bot_data["repository"]
     message = update.message
     if message is None or message.from_user is None:
         return
@@ -344,6 +395,9 @@ async def _handle_admin_mention(
     chat = update.effective_chat
     if chat is None or chat.type == "private":
         return
+
+    # Track the user
+    await _track_user(repository, message.from_user)
 
     text = message.text or message.caption or ""
     reason = _extract_reason_after_admin(text)
@@ -474,8 +528,67 @@ async def _notify_admins_of_report(
                 parse_mode="HTML",
             )
         except Exception as e:
+            logger.debug("Could not send report to admin %s: %s", admin.user.id, e)
+
+
+async def _notify_admins_of_ban(
+    context: ContextTypes.DEFAULT_TYPE,
+    chat,
+    admin,
+    banned_user_id: int,
+    success_count: int,
+    reason: str | None,
+) -> None:
+    """Send ban notification to all chat admins via private message."""
+    try:
+        chat_admins = await context.bot.get_chat_administrators(chat.id)
+    except Exception as e:
+        logger.warning("Failed to get admins for ban notification: %s", e)
+        return
+
+    chat_title = chat.title or "Chat"
+    admin_name = _get_user_display_name(admin)
+
+    # Try to get banned user display name from known_users
+    banned_name = str(banned_user_id)
+    repository: AsyncRepository | None = context.bot_data.get("repository")
+    if repository is not None:
+        known_user = await repository.get_known_user(banned_user_id)
+        if known_user is not None:
+            if known_user.first_name:
+                banned_name = known_user.first_name
+                if known_user.last_name:
+                    banned_name += f" {known_user.last_name}"
+            elif known_user.username:
+                banned_name = f"@{known_user.username}"
+
+    notification = strings.ban_notification(
+        chat_title=chat_title,
+        banned_name=banned_name,
+        banned_id=banned_user_id,
+        admin_name=admin_name,
+        admin_id=admin.id,
+        success_count=success_count,
+        reason=reason,
+    )
+
+    for member in chat_admins:
+        if member.user.is_bot:
+            continue
+        # Don't notify the admin who performed the ban
+        if member.user.id == admin.id:
+            continue
+        try:
+            await context.bot.send_message(
+                chat_id=member.user.id,
+                text=notification,
+                parse_mode="HTML",
+            )
+        except Exception as e:
             logger.debug(
-                "Could not send report to admin %s: %s", admin.user.id, e
+                "Could not send ban notification to admin %s: %s",
+                member.user.id,
+                e,
             )
 
 
@@ -483,22 +596,34 @@ async def _resolve_user_id(
     context: ContextTypes.DEFAULT_TYPE,
     chat_id: int,
     target: str,
+    moderation_service: ModerationService | None = None,
 ) -> int | None:
-    """Resolve @username or user_id to numeric user_id. @username only works for admins."""
+    """Resolve @username or user_id to numeric user_id.
+
+    Resolution order for @username:
+    1. Check chat administrators (works for admins only).
+    2. Fall back to known_users table (any user the bot has seen).
+    """
     target = target.strip()
     if target.startswith("@"):
+        username_lower = target.lstrip("@").lower()
+        # Try admins first
         try:
             admins = await context.bot.get_chat_administrators(chat_id)
-            username_lower = target.lstrip("@").lower()
             for admin in admins:
                 if (
                     admin.user.username
                     and admin.user.username.lower() == username_lower
                 ):
                     return admin.user.id
-            return None
         except Exception:
-            return None
+            pass
+        # Fall back to known_users table
+        if moderation_service is not None:
+            known = await moderation_service.get_known_user_by_username(username_lower)
+            if known is not None:
+                return known.user_id
+        return None
     if re.match(r"^-?\d+$", target):
         return int(target)
     return None
