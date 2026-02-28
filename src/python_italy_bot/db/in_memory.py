@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 
 from .base import AsyncRepository
-from .models import Ban, KnownUser, Mute, Report
+from .models import Ban, Chat, KnownUser, Mute, Report
 
 
 class InMemoryRepository(AsyncRepository):
@@ -17,7 +17,7 @@ class InMemoryRepository(AsyncRepository):
         self._reports: list[Report] = []
         self._welcome_messages: dict[int, str] = {}
         self._globally_verified: set[int] = set()
-        self._bot_chats: set[int] = set()
+        self._bot_chats: dict[int, str | None] = {}
         self._global_bans: dict[int, tuple[int, str | None]] = {}
         self._known_users: dict[int, KnownUser] = {}
         self._username_to_user_id: dict[str, int] = {}
@@ -141,11 +141,22 @@ class InMemoryRepository(AsyncRepository):
     async def mark_globally_verified(self, user_id: int) -> None:
         self._globally_verified.add(user_id)
 
-    async def register_chat(self, chat_id: int) -> None:
-        self._bot_chats.add(chat_id)
+    async def register_chat(self, chat_id: int, title: str | None = None) -> None:
+        self._bot_chats[chat_id] = title
 
     async def get_all_chats(self) -> list[int]:
-        return list(self._bot_chats)
+        return list(self._bot_chats.keys())
+
+    async def get_all_chats_with_titles(self) -> list[Chat]:
+        return [Chat(chat_id=cid, title=t) for cid, t in self._bot_chats.items()]
+
+    async def find_chats_by_title(self, query: str) -> list[Chat]:
+        query_lower = query.lower()
+        return [
+            Chat(chat_id=cid, title=t)
+            for cid, t in self._bot_chats.items()
+            if t and query_lower in t.lower()
+        ]
 
     async def add_global_ban(
         self,

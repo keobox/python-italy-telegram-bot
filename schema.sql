@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS globally_verified_users (
 
 CREATE TABLE IF NOT EXISTS bot_chats (
     chat_id BIGINT PRIMARY KEY,
+    title TEXT,
     added_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -87,3 +88,7 @@ CREATE TABLE IF NOT EXISTS welcomed_users (
 -- Add welcome_delay_minutes column to group_settings (idempotent).
 ALTER TABLE group_settings
     ADD COLUMN IF NOT EXISTS welcome_delay_minutes INTEGER;
+
+-- Add title column to bot_chats for group name lookup (idempotent).
+ALTER TABLE bot_chats
+    ADD COLUMN IF NOT EXISTS title TEXT;

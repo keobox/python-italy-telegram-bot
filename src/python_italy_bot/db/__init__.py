@@ -2,7 +2,7 @@
 
 from .base import AsyncRepository, Repository
 from .in_memory import InMemoryRepository
-from .models import Ban, Mute, Report
+from .models import Ban, Chat, Mute, Report
 from .postgres import PostgresRepository
 
 __all__ = [
@@ -11,6 +11,7 @@ __all__ = [
     "InMemoryRepository",
     "PostgresRepository",
     "Ban",
+    "Chat",
     "Mute",
     "Report",
     "create_repository",

@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 
-from .models import KnownUser
+from .models import Chat, KnownUser
 
 
 class Repository(ABC):
@@ -109,13 +109,23 @@ class Repository(ABC):
         ...
 
     @abstractmethod
-    def register_chat(self, chat_id: int) -> None:
+    def register_chat(self, chat_id: int, title: str | None = None) -> None:
         """Track a chat where the bot is active."""
         ...
 
     @abstractmethod
     def get_all_chats(self) -> list[int]:
         """Get all tracked chat IDs."""
+        ...
+
+    @abstractmethod
+    def get_all_chats_with_titles(self) -> list[Chat]:
+        """Get all tracked chats with their titles."""
+        ...
+
+    @abstractmethod
+    def find_chats_by_title(self, query: str) -> list[Chat]:
+        """Find tracked chats whose title contains the query (case-insensitive)."""
         ...
 
     @abstractmethod
@@ -290,13 +300,23 @@ class AsyncRepository(ABC):
         ...
 
     @abstractmethod
-    async def register_chat(self, chat_id: int) -> None:
+    async def register_chat(self, chat_id: int, title: str | None = None) -> None:
         """Track a chat where the bot is active."""
         ...
 
     @abstractmethod
     async def get_all_chats(self) -> list[int]:
         """Get all tracked chat IDs."""
+        ...
+
+    @abstractmethod
+    async def get_all_chats_with_titles(self) -> list[Chat]:
+        """Get all tracked chats with their titles."""
+        ...
+
+    @abstractmethod
+    async def find_chats_by_title(self, query: str) -> list[Chat]:
+        """Find tracked chats whose title contains the query (case-insensitive)."""
         ...
 
     @abstractmethod
