@@ -69,6 +69,65 @@ async def _handle_force_group_registration(
     await message.reply_text(strings.GROUP_REGISTERED.format(chat_id=chat.id))
 
 
+async def _handle_multi_ban(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    moderation_service: ModerationService,
+    message,
+    chat,
+    multi_match: re.Match[str],
+    raw_text: str,
+) -> None:
+    """Ban multiple users by ID. Usage: /ban [id1, id2, id3] [reason]."""
+    inner = multi_match.group(1)
+    parts = [p.strip() for p in inner.split(",") if p.strip()]
+
+    # Validate all parts are numeric IDs
+    if not parts or not all(re.match(r"^-?\d+$", p) for p in parts):
+        await message.reply_text(strings.BAN_USAGE)
+        return
+
+    user_ids = list(dict.fromkeys(int(p) for p in parts))  # deduplicate, preserve order
+
+    # Extract reason from text after the closing bracket
+    after_bracket = raw_text[multi_match.end() :].strip()
+    reason = after_bracket if after_bracket else None
+
+    # Fetch chat list once (same for all users)
+    chat_ids: list[int] | None = None
+    total_success = 0
+    total_fail = 0
+
+    for user_id in user_ids:
+        ban_chat_ids = await moderation_service.add_global_ban(
+            user_id, message.from_user.id, reason
+        )
+        if chat_ids is None:
+            chat_ids = ban_chat_ids
+
+        for cid in ban_chat_ids:
+            try:
+                await context.bot.ban_chat_member(cid, user_id)
+                total_success += 1
+            except Exception as e:
+                logger.debug("Ban user %s in chat %s failed: %s", user_id, cid, e)
+                total_fail += 1
+
+    await message.reply_text(
+        strings.ban_multi_success(len(user_ids), total_success, total_fail, reason)
+    )
+
+    # Notify admins of the multi-ban
+    await _notify_admins_of_multi_ban(
+        context=context,
+        chat=chat,
+        admin=message.from_user,
+        banned_ids=user_ids,
+        success_count=total_success,
+        reason=reason,
+    )
+
+
 async def _handle_ban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Ban a user globally. Usage: /ban user_id|@username [reason] or reply with /ban [reason]."""
     moderation_service: ModerationService = context.bot_data["moderation_service"]
@@ -84,7 +143,17 @@ async def _handle_ban(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await message.reply_text(strings.ONLY_ADMINS)
         return
 
-    args = message.text.split(maxsplit=2)[1:] if message.text else []
+    raw_text = message.text or ""
+
+    # Multi-ban: /ban [id1, id2, id3] [reason]
+    multi_match = re.search(r"\[([^\]]+)\]", raw_text)
+    if multi_match:
+        await _handle_multi_ban(
+            update, context, moderation_service, message, chat, multi_match, raw_text
+        )
+        return
+
+    args = raw_text.split(maxsplit=2)[1:]
 
     user_id: int | None = None
     reason: str | None = None
@@ -560,6 +629,52 @@ async def _notify_admins_of_ban(
         except Exception as e:
             logger.debug(
                 "Could not send ban notification to admin %s: %s",
+                member.user.id,
+                e,
+            )
+
+
+async def _notify_admins_of_multi_ban(
+    context: ContextTypes.DEFAULT_TYPE,
+    chat,
+    admin,
+    banned_ids: list[int],
+    success_count: int,
+    reason: str | None,
+) -> None:
+    """Send multi-ban notification to all chat admins via private message."""
+    try:
+        chat_admins = await context.bot.get_chat_administrators(chat.id)
+    except Exception as e:
+        logger.warning("Failed to get admins for multi-ban notification: %s", e)
+        return
+
+    chat_title = chat.title or "Chat"
+    admin_name = _get_user_display_name(admin)
+
+    notification = strings.ban_multi_notification(
+        chat_title=chat_title,
+        banned_ids=banned_ids,
+        admin_name=admin_name,
+        admin_id=admin.id,
+        success_count=success_count,
+        reason=reason,
+    )
+
+    for member in chat_admins:
+        if member.user.is_bot:
+            continue
+        if member.user.id == admin.id:
+            continue
+        try:
+            await context.bot.send_message(
+                chat_id=member.user.id,
+                text=notification,
+                parse_mode="HTML",
+            )
+        except Exception as e:
+            logger.debug(
+                "Could not send multi-ban notification to admin %s: %s",
                 member.user.id,
                 e,
             )

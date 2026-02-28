@@ -69,6 +69,7 @@ GROUP_REGISTERED = "Gruppo registrato. Chat ID: {chat_id}"
 # Ban
 BAN_USAGE = (
     "Uso: /ban user_id|@username [motivo], "
+    "/ban [id1, id2, id3] [motivo], "
     "o rispondi a un messaggio (anche di benvenuto) con /ban [motivo]."
 )
 
@@ -98,6 +99,41 @@ def ban_notification(
     safe_reason = html.escape(reason, quote=True) if reason else "Nessuno"
     text = f"<b>{safe_chat_title}:</b>\n"
     text += f'Utente bannato: <a href="tg://user?id={banned_id}">{safe_banned_name}</a> ({banned_id})\n'
+    text += f'Bannato da: <a href="tg://user?id={admin_id}">{safe_admin_name}</a> ({admin_id})\n'
+    text += f"Gruppi: {success_count}\n"
+    text += f"Motivo: {safe_reason}"
+    return text
+
+
+def ban_multi_success(
+    user_count: int,
+    success_count: int,
+    fail_count: int,
+    reason: str | None,
+) -> str:
+    """Format multi-ban success message."""
+    msg = f"{user_count} utenti bannati globalmente in {success_count} gruppi."
+    if fail_count > 0:
+        msg += f" ({fail_count} falliti)"
+    msg += f"\nMotivo: {reason or 'Nessuno'}"
+    return msg
+
+
+def ban_multi_notification(
+    chat_title: str,
+    banned_ids: list[int],
+    admin_name: str,
+    admin_id: int,
+    success_count: int,
+    reason: str | None,
+) -> str:
+    """Format multi-ban notification message for admins."""
+    safe_chat_title = html.escape(chat_title, quote=True)
+    safe_admin_name = html.escape(admin_name, quote=True)
+    safe_reason = html.escape(reason, quote=True) if reason else "Nessuno"
+    ids_text = ", ".join(str(uid) for uid in banned_ids)
+    text = f"<b>{safe_chat_title}:</b>\n"
+    text += f"Utenti bannati: {ids_text}\n"
     text += f'Bannato da: <a href="tg://user?id={admin_id}">{safe_admin_name}</a> ({admin_id})\n'
     text += f"Gruppi: {success_count}\n"
     text += f"Motivo: {safe_reason}"
