@@ -5,6 +5,17 @@ from datetime import datetime
 
 
 @dataclass
+class KnownUser:
+    """A user the bot has interacted with."""
+
+    user_id: int
+    username: str | None
+    first_name: str | None
+    last_name: str | None
+    updated_at: datetime
+
+
+@dataclass
 class Ban:
     """A user ban in a chat."""
 

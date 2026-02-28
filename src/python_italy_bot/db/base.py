@@ -2,6 +2,8 @@
 
 from abc import ABC, abstractmethod
 
+from .models import KnownUser
+
 
 class Repository(ABC):
     """Abstract interface for data persistence (sync)."""
@@ -136,6 +138,53 @@ class Repository(ABC):
         """Check if user is globally banned."""
         ...
 
+    # -- Known users (user tracking) --
+
+    @abstractmethod
+    def upsert_known_user(
+        self,
+        user_id: int,
+        username: str | None,
+        first_name: str | None,
+        last_name: str | None,
+    ) -> None:
+        """Insert or update a known user's info."""
+        ...
+
+    @abstractmethod
+    def get_known_user(self, user_id: int) -> KnownUser | None:
+        """Get a known user by ID."""
+        ...
+
+    @abstractmethod
+    def get_known_user_by_username(self, username: str) -> KnownUser | None:
+        """Get a known user by username (case-insensitive)."""
+        ...
+
+    # -- Welcomed users (welcome-once-per-group) --
+
+    @abstractmethod
+    def has_been_welcomed(self, user_id: int, chat_id: int) -> bool:
+        """Check if user has already been welcomed in this chat."""
+        ...
+
+    @abstractmethod
+    def mark_welcomed(self, user_id: int, chat_id: int) -> None:
+        """Mark user as having been welcomed in this chat."""
+        ...
+
+    # -- Welcome delay --
+
+    @abstractmethod
+    def get_welcome_delay(self, chat_id: int) -> int | None:
+        """Get welcome message auto-delete delay in minutes for a chat."""
+        ...
+
+    @abstractmethod
+    def set_welcome_delay(self, chat_id: int, minutes: int | None) -> None:
+        """Set welcome message auto-delete delay. None to reset to default."""
+        ...
+
 
 class AsyncRepository(ABC):
     """Abstract interface for data persistence (async)."""
@@ -268,6 +317,53 @@ class AsyncRepository(ABC):
     @abstractmethod
     async def is_globally_banned(self, user_id: int) -> bool:
         """Check if user is globally banned."""
+        ...
+
+    # -- Known users (user tracking) --
+
+    @abstractmethod
+    async def upsert_known_user(
+        self,
+        user_id: int,
+        username: str | None,
+        first_name: str | None,
+        last_name: str | None,
+    ) -> None:
+        """Insert or update a known user's info."""
+        ...
+
+    @abstractmethod
+    async def get_known_user(self, user_id: int) -> KnownUser | None:
+        """Get a known user by ID."""
+        ...
+
+    @abstractmethod
+    async def get_known_user_by_username(self, username: str) -> KnownUser | None:
+        """Get a known user by username (case-insensitive)."""
+        ...
+
+    # -- Welcomed users (welcome-once-per-group) --
+
+    @abstractmethod
+    async def has_been_welcomed(self, user_id: int, chat_id: int) -> bool:
+        """Check if user has already been welcomed in this chat."""
+        ...
+
+    @abstractmethod
+    async def mark_welcomed(self, user_id: int, chat_id: int) -> None:
+        """Mark user as having been welcomed in this chat."""
+        ...
+
+    # -- Welcome delay --
+
+    @abstractmethod
+    async def get_welcome_delay(self, chat_id: int) -> int | None:
+        """Get welcome message auto-delete delay in minutes for a chat."""
+        ...
+
+    @abstractmethod
+    async def set_welcome_delay(self, chat_id: int, minutes: int | None) -> None:
+        """Set welcome message auto-delete delay. None to reset to default."""
         ...
 
     async def close(self) -> None:
