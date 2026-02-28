@@ -12,6 +12,7 @@ from .handlers.moderation import create_moderation_handlers
 from .handlers.ping import create_ping_handlers
 from .handlers.settings import create_settings_handlers
 # from .handlers.spam import create_spam_handler
+from .handlers.utils import create_user_tracking_handler
 from .handlers.welcome import create_welcome_handlers
 from .services.captcha import CaptchaService
 from .services.moderation import ModerationService
@@ -42,6 +43,9 @@ async def _post_init(application) -> None:
     application.bot_data["captcha_service"] = captcha_service
     application.bot_data["moderation_service"] = moderation_service
     # application.bot_data["spam_detector"] = spam_detector
+
+    # Register user-tracking middleware before all other handlers (group -1)
+    application.add_handler(create_user_tracking_handler(), group=-1)
 
     for handler in create_id_handlers():
         application.add_handler(handler)
