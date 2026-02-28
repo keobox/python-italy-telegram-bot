@@ -3,6 +3,7 @@
 from telegram import ChatPermissions
 
 from ..db.base import AsyncRepository
+from ..db.models import KnownUser
 
 
 class ModerationService:
@@ -105,3 +106,19 @@ class ModerationService:
             message_id=message_id,
             reason=reason,
         )
+
+    # -- Known users (user tracking) --
+
+    async def upsert_known_user(
+        self,
+        user_id: int,
+        username: str | None,
+        first_name: str | None,
+        last_name: str | None,
+    ) -> None:
+        """Insert or update a known user's info."""
+        await self._repo.upsert_known_user(user_id, username, first_name, last_name)
+
+    async def get_known_user_by_username(self, username: str) -> KnownUser | None:
+        """Get a known user by username (case-insensitive)."""
+        return await self._repo.get_known_user_by_username(username)
