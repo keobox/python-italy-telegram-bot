@@ -3,6 +3,7 @@
 from psycopg_pool import AsyncConnectionPool
 
 from .base import AsyncRepository
+from .models import KnownUser
 
 
 class PostgresRepository(AsyncRepository):
@@ -260,6 +261,123 @@ class PostgresRepository(AsyncRepository):
                     (user_id,),
                 )
                 return await cur.fetchone() is not None
+
+    # -- Known users --
+
+    async def upsert_known_user(
+        self,
+        user_id: int,
+        username: str | None,
+        first_name: str | None,
+        last_name: str | None,
+    ) -> None:
+        async with self._pool.connection() as conn:
+            await conn.execute(
+                """
+                INSERT INTO known_users (user_id, username, first_name, last_name, updated_at)
+                VALUES (%s, %s, %s, %s, NOW())
+                ON CONFLICT (user_id)
+                DO UPDATE SET username = EXCLUDED.username,
+                              first_name = EXCLUDED.first_name,
+                              last_name = EXCLUDED.last_name,
+                              updated_at = NOW()
+                """,
+                (user_id, username, first_name, last_name),
+            )
+
+    async def get_known_user(self, user_id: int) -> KnownUser | None:
+        async with self._pool.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT user_id, username, first_name, last_name, updated_at "
+                    "FROM known_users WHERE user_id = %s",
+                    (user_id,),
+                )
+                row = await cur.fetchone()
+                if row is None:
+                    return None
+                return KnownUser(
+                    user_id=row[0],
+                    username=row[1],
+                    first_name=row[2],
+                    last_name=row[3],
+                    updated_at=row[4],
+                )
+
+    async def get_known_user_by_username(self, username: str) -> KnownUser | None:
+        async with self._pool.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT user_id, username, first_name, last_name, updated_at "
+                    "FROM known_users WHERE LOWER(username) = LOWER(%s)",
+                    (username,),
+                )
+                row = await cur.fetchone()
+                if row is None:
+                    return None
+                return KnownUser(
+                    user_id=row[0],
+                    username=row[1],
+                    first_name=row[2],
+                    last_name=row[3],
+                    updated_at=row[4],
+                )
+
+    # -- Welcomed users --
+
+    async def has_been_welcomed(self, user_id: int, chat_id: int) -> bool:
+        async with self._pool.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT 1 FROM welcomed_users WHERE user_id = %s AND chat_id = %s",
+                    (user_id, chat_id),
+                )
+                return await cur.fetchone() is not None
+
+    async def mark_welcomed(self, user_id: int, chat_id: int) -> None:
+        async with self._pool.connection() as conn:
+            await conn.execute(
+                """
+                INSERT INTO welcomed_users (user_id, chat_id)
+                VALUES (%s, %s)
+                ON CONFLICT (user_id, chat_id) DO NOTHING
+                """,
+                (user_id, chat_id),
+            )
+
+    # -- Welcome delay --
+
+    async def get_welcome_delay(self, chat_id: int) -> int | None:
+        async with self._pool.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT welcome_delay_minutes FROM group_settings WHERE chat_id = %s",
+                    (chat_id,),
+                )
+                row = await cur.fetchone()
+                return row[0] if row else None
+
+    async def set_welcome_delay(self, chat_id: int, minutes: int | None) -> None:
+        async with self._pool.connection() as conn:
+            if minutes is None:
+                await conn.execute(
+                    """
+                    UPDATE group_settings SET welcome_delay_minutes = NULL, updated_at = NOW()
+                    WHERE chat_id = %s
+                    """,
+                    (chat_id,),
+                )
+            else:
+                await conn.execute(
+                    """
+                    INSERT INTO group_settings (chat_id, welcome_delay_minutes, updated_at)
+                    VALUES (%s, %s, NOW())
+                    ON CONFLICT (chat_id)
+                    DO UPDATE SET welcome_delay_minutes = EXCLUDED.welcome_delay_minutes,
+                                  updated_at = NOW()
+                    """,
+                    (chat_id, minutes),
+                )
 
     async def close(self) -> None:
         await self._pool.close()

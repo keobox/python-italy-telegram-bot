@@ -3,7 +3,13 @@
 import re
 from pathlib import Path
 
-from telegram import Chat, ChatPermissions, InlineKeyboardButton, InlineKeyboardMarkup, User
+from telegram import (
+    Chat,
+    ChatPermissions,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    User,
+)
 
 from .. import strings
 from ..db.base import AsyncRepository
@@ -49,7 +55,7 @@ class CaptchaService:
 
     def parse_button_urls(self, text: str) -> tuple[str, InlineKeyboardMarkup | None]:
         """Extract buttonurl:// patterns and build InlineKeyboardMarkup.
-        
+
         Returns (clean_text, keyboard) where clean_text has button syntax removed.
         Multiple buttons on the same line become the same row.
         """
@@ -160,3 +166,23 @@ class CaptchaService:
     async def is_globally_verified(self, user_id: int) -> bool:
         """Check if user is globally verified."""
         return await self._repo.is_globally_verified(user_id)
+
+    # -- Welcome-once-per-group --
+
+    async def has_been_welcomed(self, user_id: int, chat_id: int) -> bool:
+        """Check if user has already been welcomed in this chat."""
+        return await self._repo.has_been_welcomed(user_id, chat_id)
+
+    async def mark_welcomed(self, user_id: int, chat_id: int) -> None:
+        """Mark user as having been welcomed in this chat."""
+        await self._repo.mark_welcomed(user_id, chat_id)
+
+    # -- Welcome delay --
+
+    async def get_welcome_delay(self, chat_id: int) -> int | None:
+        """Get welcome message auto-delete delay in minutes for a chat."""
+        return await self._repo.get_welcome_delay(chat_id)
+
+    async def set_welcome_delay(self, chat_id: int, minutes: int | None) -> None:
+        """Set welcome message auto-delete delay. None to reset to default."""
+        await self._repo.set_welcome_delay(chat_id, minutes)

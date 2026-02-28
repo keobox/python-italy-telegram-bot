@@ -4,6 +4,8 @@ All user-facing Italian strings for the bot, themed around Matrix (Neo/Electus)
 and Python programming metaphors.
 """
 
+import html
+
 BOT_NAME = "Electus"
 
 # =============================================================================
@@ -21,8 +23,7 @@ VERIFY_READ_RULES_URL = (
 )
 
 VERIFY_READ_RULES_CONTENT = (
-    "Ecco il regolamento. Leggilo e invia il comando segreto che troverai:\n\n"
-    "{content}"
+    "Ecco il regolamento. Leggilo e invia il comando segreto che troverai:\n\n{content}"
 )
 
 VERIFY_SEND_SECRET = "Invia il comando segreto per completare la verifica."
@@ -36,14 +37,13 @@ VERIFY_NO_PENDING = (
     "Se hai appena completato la verifica, potrebbe essere già stata applicata."
 )
 
-VERIFY_SUCCESS = (
-    "Verifica completata. Accesso concesso alla comunità Python Italia."
-)
+VERIFY_SUCCESS = "Verifica completata. Accesso concesso alla comunità Python Italia."
 
 VERIFY_UNKNOWN_COMMAND = (
     "Comando non riconosciuto. Leggi il regolamento "
     "e invia il comando segreto che troverai."
 )
+
 
 def get_default_welcome_template(bot_username: str) -> str:
     """Return the default welcome message template with Matrix/Python flair."""
@@ -67,7 +67,11 @@ USER_NOT_FOUND = "Utente non trovato."
 GROUP_REGISTERED = "Gruppo registrato. Chat ID: {chat_id}"
 
 # Ban
-BAN_USAGE = "Uso: /ban user_id [motivo], o rispondi al messaggio con /ban [motivo]."
+BAN_USAGE = (
+    "Uso: /ban user_id|@username [motivo], "
+    "o rispondi a un messaggio (anche di benvenuto) con /ban [motivo]."
+)
+
 
 def ban_success(success_count: int, fail_count: int, reason: str | None) -> str:
     """Format ban success message."""
@@ -77,8 +81,32 @@ def ban_success(success_count: int, fail_count: int, reason: str | None) -> str:
     msg += f"\nMotivo: {reason or 'Nessuno'}"
     return msg
 
+
+def ban_notification(
+    chat_title: str,
+    banned_name: str,
+    banned_id: int,
+    admin_name: str,
+    admin_id: int,
+    success_count: int,
+    reason: str | None,
+) -> str:
+    """Format ban notification message for admins."""
+    safe_chat_title = html.escape(chat_title, quote=True)
+    safe_banned_name = html.escape(banned_name, quote=True)
+    safe_admin_name = html.escape(admin_name, quote=True)
+    safe_reason = html.escape(reason, quote=True) if reason else "Nessuno"
+    text = f"<b>{safe_chat_title}:</b>\n"
+    text += f'Utente bannato: <a href="tg://user?id={banned_id}">{safe_banned_name}</a> ({banned_id})\n'
+    text += f'Bannato da: <a href="tg://user?id={admin_id}">{safe_admin_name}</a> ({admin_id})\n'
+    text += f"Gruppi: {success_count}\n"
+    text += f"Motivo: {safe_reason}"
+    return text
+
+
 # Unban
-UNBAN_USAGE = "Uso: /unban user_id, o rispondi al messaggio con /unban"
+UNBAN_USAGE = "Uso: /unban user_id|@username, o rispondi al messaggio con /unban"
+
 
 def unban_success(success_count: int, fail_count: int) -> str:
     """Format unban success message."""
@@ -87,8 +115,10 @@ def unban_success(success_count: int, fail_count: int) -> str:
         msg += f" ({fail_count} falliti)"
     return msg
 
+
 # Mute
 MUTE_USAGE = "Uso: /mute @username [minuti] [motivo], o rispondi al messaggio"
+
 
 def mute_success(duration: int | None, reason: str | None) -> str:
     """Format mute success message."""
@@ -98,6 +128,7 @@ def mute_success(duration: int | None, reason: str | None) -> str:
     if reason:
         msg += f". Motivo: {reason}"
     return msg
+
 
 MUTE_FAILED = "Impossibile mutare l'utente."
 
@@ -131,6 +162,19 @@ RESETWELCOME_SUCCESS = "Messaggio di benvenuto ripristinato al default."
 GETWELCOME_CUSTOM = "Messaggio di benvenuto attuale:\n\n{message}"
 GETWELCOME_DEFAULT = "Nessun messaggio personalizzato. Default:\n\n{message}"
 
+# Welcome delay
+SETWELCOMEDELAY_USAGE = "Uso: /setwelcomedelay <minuti> (0 per disattivare)"
+SETWELCOMEDELAY_SUCCESS = (
+    "Ritardo cancellazione messaggio di benvenuto impostato a {minutes} minuti."
+)
+SETWELCOMEDELAY_DISABLED = (
+    "Cancellazione automatica del messaggio di benvenuto disattivata."
+)
+GETWELCOMEDELAY_RESPONSE = (
+    "Ritardo cancellazione messaggio di benvenuto: {minutes} minuti."
+)
+GETWELCOMEDELAY_DEFAULT = "Nessun ritardo configurato. Default: 5 minuti."
+
 
 # =============================================================================
 # ID COMMAND
@@ -146,12 +190,12 @@ ID_RESPONSE = "ID chat: {chat_id}\nID utente: {user_id}"
 ANNOUNCE_OWNER_ONLY = "Solo il proprietario del bot può usare questo comando."
 ANNOUNCE_NO_OWNER_CONFIGURED = "BOT_OWNER_ID non configurato."
 ANNOUNCE_USAGE = (
-    "Uso: /announce <messaggio>\n\n"
-    "Supporta HTML e bottoni: [Testo](buttonurl://url)"
+    "Uso: /announce <messaggio>\n\nSupporta HTML e bottoni: [Testo](buttonurl://url)"
 )
 ANNOUNCE_EMPTY_MESSAGE = "Il messaggio non può essere vuoto."
 ANNOUNCE_NO_GROUPS = "Nessun gruppo registrato."
 ANNOUNCE_SENDING = "Invio annuncio a {count} gruppi..."
+
 
 def announce_result(success: int, failed: int) -> str:
     """Format announcement result message."""

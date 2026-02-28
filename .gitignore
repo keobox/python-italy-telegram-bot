@@ -15,8 +15,16 @@ env/
 .idea/
 .vscode/
 .cursor/
+.zed/
 *.swp
 *.swo
+
+# AI / agent tooling
+.codex/
+.gemini/
+.mcp.json
+opencode.json
+electus/
 
 # OS
 .DS_Store

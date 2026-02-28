@@ -13,10 +13,14 @@ from telegram.ext import (
 )
 
 from .. import strings
+from ..db.base import AsyncRepository
 from ..services.captcha import CaptchaService
 from ..services.moderation import ModerationService
+from .utils import track_user
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_WELCOME_DELAY_MINUTES = 5
 
 
 def create_welcome_handlers(captcha_service: CaptchaService) -> list:
@@ -34,6 +38,21 @@ def create_welcome_handlers(captcha_service: CaptchaService) -> list:
     ]
 
 
+async def _delete_welcome_message(context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Job callback: delete a welcome message after the configured delay."""
+    job = context.job
+    if job is None or job.data is None:
+        return
+    data: tuple[int, int] = job.data  # type: ignore[assignment]
+    chat_id, message_id = data
+    try:
+        await context.bot.delete_message(chat_id=chat_id, message_id=message_id)
+    except Exception as e:
+        logger.debug(
+            "Could not delete welcome message %s in chat %s: %s", message_id, chat_id, e
+        )
+
+
 async def _handle_new_member(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
@@ -41,6 +60,7 @@ async def _handle_new_member(
     """Handle new chat members: restrict and send welcome with captcha instructions."""
     captcha_service: CaptchaService = context.bot_data["captcha_service"]
     moderation_service: ModerationService = context.bot_data["moderation_service"]
+    repository: AsyncRepository = context.bot_data["repository"]
     result = update.chat_member
     if result is None:
         return
@@ -63,6 +83,10 @@ async def _handle_new_member(
         return
 
     await moderation_service.register_chat(chat.id)
+
+    # Track the new member explicitly: middleware tracks effective_user (the admin
+    # when someone is added by an admin), but we need to track the joined member.
+    await track_user(repository, user)
 
     if user.is_bot:
         return
@@ -90,6 +114,10 @@ async def _handle_new_member(
 
     await captcha_service.add_pending(user.id, chat.id)
 
+    # Skip welcome if user was already welcomed in this chat
+    if await captcha_service.has_been_welcomed(user.id, chat.id):
+        return
+
     bot_me = await context.bot.get_me()
     bot_username = bot_me.username or "bot"
 
@@ -99,17 +127,39 @@ async def _handle_new_member(
     else:
         template = captcha_service.get_default_welcome_template(bot_username)
 
-    formatted = captcha_service.format_welcome_message(template, user, chat, bot_username)
+    formatted = captcha_service.format_welcome_message(
+        template, user, chat, bot_username
+    )
     text, keyboard = captcha_service.parse_button_urls(formatted)
 
     try:
-        await context.bot.send_message(
+        sent = await context.bot.send_message(
             chat_id=chat.id,
             text=text,
             reply_markup=keyboard,
         )
     except Exception as e:
         logger.warning("Could not send welcome to chat %s: %s", chat.id, e)
+        return
+
+    # Mark user as welcomed in this chat
+    await captcha_service.mark_welcomed(user.id, chat.id)
+
+    # Store welcome message -> user mapping for ban-by-reply
+    welcome_map = context.bot_data.setdefault("welcome_message_map", {})
+    welcome_map[(chat.id, sent.message_id)] = user.id
+
+    # Schedule auto-deletion of the welcome message
+    delay_minutes = await captcha_service.get_welcome_delay(chat.id)
+    if delay_minutes is None:
+        delay_minutes = DEFAULT_WELCOME_DELAY_MINUTES
+    if delay_minutes > 0 and context.job_queue is not None:
+        context.job_queue.run_once(
+            _delete_welcome_message,
+            when=delay_minutes * 60,
+            data=(chat.id, sent.message_id),
+            name=f"del_welcome_{chat.id}_{sent.message_id}",
+        )
 
 
 async def _handle_start(

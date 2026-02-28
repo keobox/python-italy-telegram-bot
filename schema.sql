@@ -64,3 +64,26 @@ CREATE TABLE IF NOT EXISTS global_bans (
     reason TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS known_users (
+    user_id BIGINT PRIMARY KEY,
+    username TEXT,
+    first_name TEXT,
+    last_name TEXT,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_known_users_username
+    ON known_users (LOWER(username))
+    WHERE username IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS welcomed_users (
+    user_id BIGINT NOT NULL,
+    chat_id BIGINT NOT NULL,
+    welcomed_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (user_id, chat_id)
+);
+
+-- Add welcome_delay_minutes column to group_settings (idempotent).
+ALTER TABLE group_settings
+    ADD COLUMN IF NOT EXISTS welcome_delay_minutes INTEGER;

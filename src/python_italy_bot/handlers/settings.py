@@ -32,6 +32,8 @@ def create_settings_handlers() -> list:
         CommandHandler("setwelcome", _handle_setwelcome),
         CommandHandler("resetwelcome", _handle_resetwelcome),
         CommandHandler("getwelcome", _handle_getwelcome),
+        CommandHandler("setwelcomedelay", _handle_setwelcomedelay),
+        CommandHandler("getwelcomedelay", _handle_getwelcomedelay),
     ]
 
 
@@ -39,13 +41,13 @@ async def _handle_setwelcome(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
     """Set custom welcome message for the group.
-    
+
     Usage: /setwelcome <message>
-    
+
     Supports placeholders:
       - {username}: @username or full name
       - {chatname}: group name
-    
+
     Supports button syntax:
       - [Button Text](buttonurl://URL)
     """
@@ -134,6 +136,74 @@ async def _handle_getwelcome(
     else:
         bot_username = (await context.bot.get_me()).username or "bot"
         default = captcha_service.get_default_welcome_template(bot_username)
+        await message.reply_text(strings.GETWELCOME_DEFAULT.format(message=default))
+
+
+async def _handle_setwelcomedelay(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Set auto-delete delay for welcome messages. Usage: /setwelcomedelay <minutes>."""
+    captcha_service: CaptchaService = context.bot_data["captcha_service"]
+    message = update.message
+    if message is None or message.from_user is None:
+        return
+
+    chat = update.effective_chat
+    if chat is None or chat.type == "private":
+        await message.reply_text(strings.ONLY_IN_GROUPS)
+        return
+
+    if not await _is_admin(context, chat.id, message.from_user.id):
+        await message.reply_text(strings.ONLY_ADMINS)
+        return
+
+    if message.text is None:
+        return
+
+    parts = message.text.split(maxsplit=1)
+    if len(parts) < 2 or not parts[1].strip().isdigit():
+        await message.reply_text(strings.SETWELCOMEDELAY_USAGE)
+        return
+
+    minutes = int(parts[1].strip())
+
+    if minutes == 0:
+        await captcha_service.set_welcome_delay(chat.id, 0)
+        await message.reply_text(strings.SETWELCOMEDELAY_DISABLED)
+    else:
+        await captcha_service.set_welcome_delay(chat.id, minutes)
         await message.reply_text(
-            strings.GETWELCOME_DEFAULT.format(message=default)
+            strings.SETWELCOMEDELAY_SUCCESS.format(minutes=minutes)
         )
+
+    logger.info(
+        "Welcome delay set to %s min for chat %s by admin %s",
+        minutes,
+        chat.id,
+        message.from_user.id,
+    )
+
+
+async def _handle_getwelcomedelay(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Show current auto-delete delay for welcome messages."""
+    captcha_service: CaptchaService = context.bot_data["captcha_service"]
+    message = update.message
+    if message is None or message.from_user is None:
+        return
+
+    chat = update.effective_chat
+    if chat is None or chat.type == "private":
+        await message.reply_text(strings.ONLY_IN_GROUPS)
+        return
+
+    if not await _is_admin(context, chat.id, message.from_user.id):
+        await message.reply_text(strings.ONLY_ADMINS)
+        return
+
+    delay = await captcha_service.get_welcome_delay(chat.id)
+    if delay is not None:
+        await message.reply_text(strings.GETWELCOMEDELAY_RESPONSE.format(minutes=delay))
+    else:
+        await message.reply_text(strings.GETWELCOMEDELAY_DEFAULT)
