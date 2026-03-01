@@ -1,6 +1,7 @@
 """Captcha verification logic (file + secret command flow)."""
 
 import re
+from datetime import datetime
 from pathlib import Path
 
 from telegram import (
@@ -204,3 +205,9 @@ class CaptchaService:
     async def delete_welcome_message(self, chat_id: int, message_id: int) -> None:
         """Remove a welcome message mapping."""
         await self._repo.delete_welcome_message(chat_id, message_id)
+
+    async def get_all_welcome_messages(
+        self,
+    ) -> list[tuple[int, int, int, datetime]]:
+        """Return all tracked welcome messages as (chat_id, message_id, user_id, created_at)."""
+        return await self._repo.get_all_welcome_messages()

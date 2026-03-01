@@ -1,5 +1,7 @@
 """PostgreSQL implementation of the repository using psycopg async pool."""
 
+from datetime import datetime
+
 from psycopg_pool import AsyncConnectionPool
 
 from .base import AsyncRepository
@@ -426,6 +428,18 @@ class PostgresRepository(AsyncRepository):
                 )
                 row = await cur.fetchone()
                 return row[0] if row else None
+
+    async def get_all_welcome_messages(
+        self,
+    ) -> list[tuple[int, int, int, datetime]]:
+        async with self._pool.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT chat_id, message_id, user_id, created_at "
+                    "FROM welcome_messages ORDER BY created_at"
+                )
+                rows = await cur.fetchall()
+                return [(r[0], r[1], r[2], r[3]) for r in rows]
 
     async def delete_welcome_message(self, chat_id: int, message_id: int) -> None:
         async with self._pool.connection() as conn:

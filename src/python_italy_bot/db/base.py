@@ -1,6 +1,7 @@
 """Abstract repository interface for persistence."""
 
 from abc import ABC, abstractmethod
+from datetime import datetime
 
 from .models import Chat, KnownUser
 
@@ -419,6 +420,13 @@ class AsyncRepository(ABC):
         self, chat_id: int, message_id: int
     ) -> int | None:
         """Get the user_id associated with a welcome message, or None."""
+        ...
+
+    @abstractmethod
+    async def get_all_welcome_messages(
+        self,
+    ) -> list[tuple[int, int, int, datetime]]:
+        """Return all tracked welcome messages as (chat_id, message_id, user_id, created_at)."""
         ...
 
     @abstractmethod

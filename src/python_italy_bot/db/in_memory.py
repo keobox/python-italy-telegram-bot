@@ -239,5 +239,14 @@ class InMemoryRepository(AsyncRepository):
     ) -> int | None:
         return self._welcome_message_map.get((chat_id, message_id))
 
+    async def get_all_welcome_messages(
+        self,
+    ) -> list[tuple[int, int, int, datetime]]:
+        now = datetime.now(timezone.utc)
+        return [
+            (chat_id, message_id, user_id, now)
+            for (chat_id, message_id), user_id in self._welcome_message_map.items()
+        ]
+
     async def delete_welcome_message(self, chat_id: int, message_id: int) -> None:
         self._welcome_message_map.pop((chat_id, message_id), None)
