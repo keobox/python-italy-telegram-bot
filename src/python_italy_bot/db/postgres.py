@@ -366,6 +366,13 @@ class PostgresRepository(AsyncRepository):
                 (user_id, chat_id),
             )
 
+    async def remove_welcomed(self, user_id: int, chat_id: int) -> None:
+        async with self._pool.connection() as conn:
+            await conn.execute(
+                "DELETE FROM welcomed_users WHERE user_id = %s AND chat_id = %s",
+                (user_id, chat_id),
+            )
+
     # -- Welcome delay --
 
     async def get_welcome_delay(self, chat_id: int) -> int | None:

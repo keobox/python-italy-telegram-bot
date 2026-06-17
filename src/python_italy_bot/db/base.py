@@ -184,6 +184,11 @@ class Repository(ABC):
         """Mark user as having been welcomed in this chat."""
         ...
 
+    @abstractmethod
+    def remove_welcomed(self, user_id: int, chat_id: int) -> None:
+        """Clear the welcomed flag for a user in this chat."""
+        ...
+
     # -- Welcome delay --
 
     @abstractmethod
@@ -392,6 +397,11 @@ class AsyncRepository(ABC):
     @abstractmethod
     async def mark_welcomed(self, user_id: int, chat_id: int) -> None:
         """Mark user as having been welcomed in this chat."""
+        ...
+
+    @abstractmethod
+    async def remove_welcomed(self, user_id: int, chat_id: int) -> None:
+        """Clear the welcomed flag for a user in this chat."""
         ...
 
     # -- Welcome delay --

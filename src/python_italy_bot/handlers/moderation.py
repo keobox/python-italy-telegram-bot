@@ -36,6 +36,7 @@ def create_moderation_handlers(moderation_service: ModerationService) -> list:
         CommandHandler("unban", _handle_unban),
         CommandHandler("mute", _handle_mute),
         CommandHandler("unmute", _handle_unmute),
+        CommandHandler("unlock", _handle_unlock),
         CommandHandler("report", _handle_report),
         CommandHandler("forcegroupregistration", _handle_force_group_registration),
         MessageHandler(
@@ -374,6 +375,61 @@ async def _handle_unmute(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     except Exception as e:
         logger.warning("Unmute failed: %s", e)
         await message.reply_text(strings.UNMUTE_FAILED)
+
+
+async def _handle_unlock(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Clear a captcha lock: verify the user globally and restore permissions.
+
+    Distinct from /unmute (which reverses a moderation /mute). /unlock frees a
+    user stuck in the captcha 'pending verification' state. Usage: /unlock @username.
+    """
+    moderation_service: ModerationService = context.bot_data["moderation_service"]
+    captcha_service: CaptchaService = context.bot_data["captcha_service"]
+    message = update.message
+    if message is None or message.from_user is None:
+        return
+
+    chat = update.effective_chat
+    if chat is None or chat.type == "private":
+        return
+
+    if not await _is_admin(context, chat.id, message.from_user.id):
+        await message.reply_text(strings.ONLY_ADMINS)
+        return
+
+    args = message.text.split(maxsplit=1)[1:] if message.text else []
+    user_id: int | None = None
+    if message.reply_to_message and message.reply_to_message.from_user:
+        user_id = message.reply_to_message.from_user.id
+    elif args:
+        user_id = await _resolve_user_id(context, chat.id, args[0], moderation_service)
+
+    if user_id is None:
+        await message.reply_text(strings.UNLOCK_USAGE)
+        return
+
+    # Capture pending chats before global verification clears them, so we know
+    # where to restore permissions. Always include the current chat as well.
+    pending_chats = await captcha_service.get_pending_chats(user_id)
+    await captcha_service.verify_user_globally(user_id)
+
+    full_perms = captcha_service.get_full_permissions()
+    for chat_id in {chat.id, *pending_chats}:
+        try:
+            await context.bot.restrict_chat_member(
+                chat_id=chat_id,
+                user_id=user_id,
+                permissions=full_perms,
+            )
+        except Exception as e:
+            logger.warning(
+                "Unlock: could not restore permissions for %s in chat %s: %s",
+                user_id,
+                chat_id,
+                e,
+            )
+
+    await message.reply_text(strings.UNLOCK_SUCCESS)
 
 
 async def _handle_report(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
