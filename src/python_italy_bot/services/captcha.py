@@ -164,6 +164,10 @@ class CaptchaService:
         """Record that user joined and needs verification."""
         await self._repo.add_pending_verification(user_id, chat_id)
 
+    async def remove_pending(self, user_id: int, chat_id: int) -> None:
+        """Remove a single pending-verification entry for a user in a chat."""
+        await self._repo.remove_pending(user_id, chat_id)
+
     async def is_globally_verified(self, user_id: int) -> bool:
         """Check if user is globally verified."""
         return await self._repo.is_globally_verified(user_id)
@@ -177,6 +181,10 @@ class CaptchaService:
     async def mark_welcomed(self, user_id: int, chat_id: int) -> None:
         """Mark user as having been welcomed in this chat."""
         await self._repo.mark_welcomed(user_id, chat_id)
+
+    async def remove_welcomed(self, user_id: int, chat_id: int) -> None:
+        """Clear the welcomed flag for a user in this chat (e.g. on departure)."""
+        await self._repo.remove_welcomed(user_id, chat_id)
 
     # -- Welcome delay --
 

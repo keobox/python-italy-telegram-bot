@@ -82,6 +82,17 @@ async def _handle_new_member(
     new_status = result.new_chat_member.status
     old_status = result.old_chat_member.status if result.old_chat_member else None
 
+    # User left or was kicked/banned: clear per-chat welcome + pending state so a
+    # genuine rejoin re-triggers the captcha instead of being silently re-muted.
+    # Global verification is intentionally preserved (verified users stay verified).
+    if new_status in (ChatMemberStatus.LEFT, ChatMemberStatus.BANNED):
+        departing = result.new_chat_member.user
+        chat = update.effective_chat
+        if departing is not None and chat is not None:
+            await captcha_service.remove_welcomed(departing.id, chat.id)
+            await captcha_service.remove_pending(departing.id, chat.id)
+        return
+
     if new_status not in (ChatMemberStatus.MEMBER, ChatMemberStatus.RESTRICTED):
         return
     if old_status in (

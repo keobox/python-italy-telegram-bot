@@ -216,6 +216,9 @@ class InMemoryRepository(AsyncRepository):
     async def mark_welcomed(self, user_id: int, chat_id: int) -> None:
         self._welcomed.add((user_id, chat_id))
 
+    async def remove_welcomed(self, user_id: int, chat_id: int) -> None:
+        self._welcomed.discard((user_id, chat_id))
+
     # -- Welcome delay --
 
     async def get_welcome_delay(self, chat_id: int) -> int | None:

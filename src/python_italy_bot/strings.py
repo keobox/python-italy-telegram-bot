@@ -173,6 +173,10 @@ UNMUTE_USAGE = "Uso: /unmute @username, /unmute user_id, o rispondi al messaggio
 UNMUTE_SUCCESS = "Utente smutato."
 UNMUTE_FAILED = "Impossibile smutare l'utente."
 
+# Unlock (clear captcha lock for a user stuck pending verification)
+UNLOCK_USAGE = "Uso: /unlock @username, /unlock user_id, o rispondi al messaggio"
+UNLOCK_SUCCESS = "Utente sbloccato. La verifica captcha non è più richiesta."
+
 # Report
 REPORT_USAGE = "Rispondi al messaggio da segnalare con /report [motivo]"
 REPORT_SUCCESS = "Segnalazione inviata. Gli amministratori la esamineranno."
